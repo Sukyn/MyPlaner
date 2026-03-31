@@ -1,4 +1,5 @@
 dist/
+planner-server.log
 
 todolist/personnal/**
 !todolist/personnal/

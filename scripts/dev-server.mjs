@@ -13,12 +13,13 @@ import {
 
 const rootDir = process.cwd();
 const distDir = path.join(rootDir, "dist");
-const port = Number(process.env.PORT || 4173);
+const defaultPort = 4173;
+const configuredPort = parseConfiguredPort(process.env.PORT);
 let buildQueue = Promise.resolve();
 
 await buildAndLog();
 startWatcher();
-startServer();
+await startServer();
 
 async function buildAndLog() {
   const result = await queueBuild();
@@ -63,8 +64,39 @@ function startWatcher() {
   }
 }
 
-function startServer() {
-  const server = createServer(async (request, response) => {
+async function startServer() {
+  const preferredPort = configuredPort ?? defaultPort;
+  const allowFallback = configuredPort == null;
+  let nextPort = preferredPort;
+
+  while (true) {
+    const server = createPlannerServer();
+
+    try {
+      await listenOnPort(server, nextPort);
+
+      if (nextPort !== preferredPort) {
+        console.log(
+          `[planner] port ${preferredPort} is busy, using http://localhost:${nextPort}`
+        );
+      } else {
+        console.log(`[planner] http://localhost:${nextPort}`);
+      }
+
+      return;
+    } catch (error) {
+      if (allowFallback && error?.code === "EADDRINUSE") {
+        nextPort += 1;
+        continue;
+      }
+
+      throw error;
+    }
+  }
+}
+
+function createPlannerServer() {
+  return createServer(async (request, response) => {
     const requestUrl = new URL(request.url || "/", "http://localhost");
     const pathname = decodeURIComponent(requestUrl.pathname);
 
@@ -124,10 +156,38 @@ function startServer() {
 
     createReadStream(selectedPath).pipe(response);
   });
+}
 
-  server.listen(port, () => {
-    console.log(`[planner] http://localhost:${port}`);
+function listenOnPort(server, port) {
+  return new Promise((resolve, reject) => {
+    const handleError = (error) => {
+      cleanup();
+      reject(error);
+    };
+
+    const handleListening = () => {
+      cleanup();
+      resolve();
+    };
+
+    const cleanup = () => {
+      server.off("error", handleError);
+      server.off("listening", handleListening);
+    };
+
+    server.once("error", handleError);
+    server.once("listening", handleListening);
+    server.listen(port);
   });
+}
+
+function parseConfiguredPort(value) {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = Number.parseInt(String(value), 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
 async function handleDeleteItemRequest(request, response) {
