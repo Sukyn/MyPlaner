@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
+    <title>My Planner</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <div class="main-grid">
+        <aside class="sidebar">
+          <section class="panel panel--controls">
+            <div class="panel__header">
+              <h2>Planner Controls</h2>
+              <button id="today-button" class="button button--ghost" type="button">
+                Jump to today
+              </button>
+            </div>
+
+            <label class="field">
+              <span>Search</span>
+              <input id="search-input" type="search" placeholder="Search tasks, projects, or categories..." />
+            </label>
+
+            <label class="field">
+              <span>Date</span>
+              <input id="date-input" type="date" />
+            </label>
+
+            <label class="toggle">
+              <input id="quiet-toggle" type="checkbox" />
+              <span>Show quiet days too</span>
+            </label>
+          </section>
+
+          <section class="panel panel--composer panel--collapsible">
+            <div class="panel__header">
+              <button
+                id="new-item-panel-toggle"
+                class="panel-toggle"
+                type="button"
+                aria-expanded="false"
+                aria-controls="new-item-panel-body"
+              >
+                <span class="panel-toggle__title">Add Item</span>
+                <span class="panel-toggle__icon" aria-hidden="true">+</span>
+              </button>
+            </div>
+
+            <div id="new-item-panel-body" class="panel__content" hidden>
+              <form id="new-item-form" class="planner-form">
+                <label class="field field--compact">
+                  <input
+                    id="new-item-text"
+                    type="text"
+                    placeholder="New item..."
+                    aria-label="Item title"
+                    required
+                  />
+                </label>
+
+                <div class="form-row form-row--composer">
+                  <div class="picker">
+                    <button
+                      id="new-item-kind-trigger"
+                      class="picker-trigger"
+                      type="button"
+                      aria-haspopup="listbox"
+                      aria-expanded="false"
+                    ></button>
+                    <div id="new-item-kind-options" class="picker-menu" hidden></div>
+                  </div>
+
+                  <label class="field field--compact field--date">
+                    <input id="new-item-date" type="date" aria-label="Day" required />
+                  </label>
+                </div>
+
+                <div class="picker">
+                  <button
+                    id="new-item-project-trigger"
+                    class="picker-trigger picker-trigger--project"
+                    type="button"
+                    aria-haspopup="listbox"
+                    aria-expanded="false"
+                  ></button>
+                  <div id="new-item-project-options" class="picker-menu picker-menu--projects" hidden></div>
+                </div>
+
+                <div class="form-row">
+                  <label class="field">
+                    <span>Start time</span>
+                    <input id="new-item-start-time" type="time" />
+                  </label>
+
+                  <label class="field">
+                    <span>End time</span>
+                    <input id="new-item-end-time" type="time" />
+                  </label>
+                </div>
+
+                <label id="new-item-estimate-field" class="field" hidden>
+                  <span>Task length (minutes)</span>
+                  <input id="new-item-estimate" type="number" min="15" step="15" placeholder="45" />
+                </label>
+
+                <p id="new-item-feedback" class="form-feedback" aria-live="polite"></p>
+                <button id="new-item-submit" class="button button--ghost" type="submit">
+                  Add item
+                </button>
+              </form>
+            </div>
+          </section>
+
+          <section class="panel panel--composer panel--collapsible">
+            <div class="panel__header">
+              <button
+                id="new-project-panel-toggle"
+                class="panel-toggle"
+                type="button"
+                aria-expanded="false"
+                aria-controls="new-project-panel-body"
+              >
+                <span class="panel-toggle__title">New Project</span>
+                <span class="panel-toggle__icon" aria-hidden="true">+</span>
+              </button>
+            </div>
+
+            <div id="new-project-panel-body" class="panel__content" hidden>
+              <form id="new-project-form" class="planner-form">
+                <label class="field field--compact">
+                  <input
+                    id="new-project-name"
+                    type="text"
+                    placeholder="New project..."
+                    aria-label="Project name"
+                    required
+                  />
+                </label>
+
+                <div class="picker">
+                  <button
+                    id="new-project-category-trigger"
+                    class="picker-trigger"
+                    type="button"
+                    aria-haspopup="listbox"
+                    aria-expanded="false"
+                  ></button>
+                  <div id="new-project-category-options" class="picker-menu" hidden></div>
+                </div>
+
+                <p id="new-project-feedback" class="form-feedback" aria-live="polite"></p>
+                <button id="new-project-submit" class="button button--ghost" type="submit">
+                  Create project
+                </button>
+              </form>
+            </div>
+          </section>
+
+        </aside>
+
+        <main class="agenda">
+          <section class="panel panel--agenda">
+            <div id="agenda-list" class="agenda-list"></div>
+          </section>
+        </main>
+
+        <aside class="details">
+          <section class="panel panel--detail">
+            <div class="panel__header">
+              <div>
+                <h2 id="detail-title">Selected day</h2>
+              </div>
+              <div class="detail-nav">
+                <button id="prev-button" class="button button--ghost" type="button">
+                  Prev
+                </button>
+                <button id="next-button" class="button button--ghost" type="button">
+                  Next
+                </button>
+              </div>
+            </div>
+
+            <div class="detail-meta">
+              <span id="detail-week"></span>
+            </div>
+
+            <div id="detail-groups" class="detail-groups"></div>
+          </section>
+        </aside>
+      </div>
+    </div>
+
+    <dialog id="agenda-dialog" class="agenda-dialog">
+      <form method="dialog" class="agenda-dialog__panel">
+        <div class="agenda-dialog__header">
+          <div class="agenda-dialog__eyebrow" id="agenda-dialog-meta"></div>
+          <button class="button button--ghost agenda-dialog__close" type="submit">Close</button>
+        </div>
+        <div class="agenda-dialog__body">
+          <h3 id="agenda-dialog-title"></h3>
+          <p id="agenda-dialog-context" class="agenda-dialog__context"></p>
+        </div>
+      </form>
+    </dialog>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

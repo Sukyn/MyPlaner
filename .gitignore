@@ -1,0 +1,13 @@
+dist/
+
+todolist/personnal/**
+!todolist/personnal/
+!todolist/personnal/.gitkeep
+!todolist/personnal/**/
+!todolist/personnal/**/.gitkeep
+
+todolist/professional/**
+!todolist/professional/
+!todolist/professional/.gitkeep
+!todolist/professional/**/
+!todolist/professional/**/.gitkeep
