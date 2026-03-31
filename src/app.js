@@ -1,3 +1,6 @@
+// Client runtime for the generated planner bundle. Parsing and initial agenda
+// placement live in `scripts/planner-data.mjs`; the browser mostly renders,
+// filters, and lightly reflows the current day against the live clock.
 const DAY_PREVIEW_LIMIT = 3;
 const DEFAULT_SLOT_START_MINUTE = 8 * 60;
 const DEFAULT_SLOT_END_MINUTE = 18 * 60;
@@ -31,6 +34,7 @@ const state = {
   showQuietDays: false,
   clockTimer: null,
   deletingItemKeys: new Set(),
+  editingItemKeys: new Set(),
   itemComposer: {
     text: "",
     date: "",
@@ -835,7 +839,7 @@ function renderDayCard(day) {
 
 function wireDayCardSelection(card, day) {
   card.addEventListener("click", (event) => {
-    if (event.target.closest(".item-delete-button")) {
+    if (event.target.closest(".item-action-button")) {
       return;
     }
 
@@ -869,7 +873,7 @@ function renderPreviewItem(item, day) {
     <div class="preview-item__text">${escapeHtml(item.text)}</div>
     <div class="preview-item__context">${escapeHtml(item.contextLabel)}${durationLabel ? ` | ${escapeHtml(durationLabel)}` : ""}</div>
   `;
-  entry.append(createDeleteButton(item, day));
+  entry.append(createItemActionButtons(item, day));
 
   return entry;
 }
@@ -936,7 +940,7 @@ function renderAgendaStack(day) {
     entry.innerHTML = `
       <div class="agenda-card__title">${escapeHtml(item.text)}</div>
     `;
-    entry.append(createDeleteButton(item, day));
+    entry.append(createItemActionButtons(item, day));
     wrapper.append(entry);
   }
 
@@ -1022,7 +1026,7 @@ function renderTimeline(day) {
     entry.innerHTML = `
       <div class="agenda-entry__title">${escapeHtml(item.text)}</div>
     `;
-    entry.append(createDeleteButton(item, day));
+    entry.append(createItemActionButtons(item, day));
     canvas.append(entry);
   }
 
@@ -1058,7 +1062,7 @@ function buildAgendaTooltip(item) {
 
 function wireAgendaInteraction(element, item, day) {
   element.addEventListener("click", (event) => {
-    if (event.target.closest(".item-delete-button")) {
+    if (event.target.closest(".item-action-button")) {
       return;
     }
 
@@ -1076,16 +1080,46 @@ function wireAgendaInteraction(element, item, day) {
   });
 }
 
+function createItemActionButtons(item, day) {
+  const actions = document.createElement("div");
+  actions.className = "item-actions";
+  actions.append(createEditButton(item, day), createDeleteButton(item, day));
+  return actions;
+}
+
+function createEditButton(item, day) {
+  const button = document.createElement("button");
+  const itemKey = getItemDeletionKey(item);
+  const isMutating =
+    state.deletingItemKeys.has(itemKey) || state.editingItemKeys.has(itemKey);
+
+  button.type = "button";
+  button.className = "item-action-button item-edit-button";
+  button.textContent = "\u270E";
+  button.title = `Edit "${item.text}"`;
+  button.setAttribute("aria-label", `Edit ${item.text}`);
+  button.disabled = isMutating;
+  button.addEventListener("click", async (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    await promptAndEditItem(item, day);
+  });
+
+  return button;
+}
+
 function createDeleteButton(item, day) {
   const button = document.createElement("button");
   const deletionKey = getItemDeletionKey(item);
+  const isMutating =
+    state.deletingItemKeys.has(deletionKey) || state.editingItemKeys.has(deletionKey);
 
   button.type = "button";
-  button.className = "item-delete-button";
+  button.className = "item-action-button item-delete-button";
   button.textContent = "x";
   button.title = `Delete "${item.text}"`;
   button.setAttribute("aria-label", `Delete ${item.text}`);
-  button.disabled = state.deletingItemKeys.has(deletionKey);
+  button.disabled = isMutating;
   button.addEventListener("click", async (event) => {
     event.preventDefault();
     event.stopPropagation();
@@ -1107,6 +1141,97 @@ function getItemDeletionKey(item) {
   ].join("::");
 }
 
+function buildEditableItemText(item) {
+  const timing = item.timing ?? {};
+  let text = String(item.text ?? "").trim();
+
+  if (timing.explicitTimeSource === "leading-range") {
+    text = `${formatTodoClock(timing.explicitStartMinute)}-${formatTodoClock(timing.explicitEndMinute)} ${text}`;
+  } else if (timing.explicitTimeSource === "leading-start") {
+    text = `${formatTodoClock(timing.explicitStartMinute)} ${text}`;
+  }
+
+  if (
+    timing.explicitEndMinute == null &&
+    timing.estimateSource === "tag" &&
+    Number.isFinite(timing.estimateMinutes)
+  ) {
+    text = `${text} @${formatTodoDurationToken(timing.estimateMinutes)}`;
+  }
+
+  return text.trim();
+}
+
+function normalizeEditableItemText(value) {
+  return String(value ?? "")
+    .replace(/\r?\n+/g, " ")
+    .replace(/^\s*[-*]\s+(?:\[(?: |x|X)\]\s+)?/, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+async function promptAndEditItem(item, day) {
+  if (!item.sourceInfo) {
+    window.alert("This item cannot be edited because its source metadata is missing.");
+    return;
+  }
+
+  const itemKey = getItemDeletionKey(item);
+  if (state.deletingItemKeys.has(itemKey) || state.editingItemKeys.has(itemKey)) {
+    return;
+  }
+
+  const currentText = buildEditableItemText(item);
+  const draftText = window.prompt(`Edit "${item.text}"`, currentText);
+  if (draftText == null) {
+    return;
+  }
+
+  const nextText = normalizeEditableItemText(draftText);
+  if (!nextText) {
+    window.alert("Items need a title.");
+    return;
+  }
+
+  if (nextText === normalizeEditableItemText(currentText)) {
+    return;
+  }
+
+  const previousSelectedDate = state.selectedDate;
+  state.editingItemKeys.add(itemKey);
+  render();
+
+  try {
+    const response = await fetch("./api/items/update", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        sourceInfo: item.sourceInfo,
+        text: nextText
+      })
+    });
+    const payload = await readApiResult(response, "Update request");
+
+    if (elements.agendaDialog.open) {
+      elements.agendaDialog.close();
+    }
+
+    await refreshPlannerData(previousSelectedDate, payload?.plannerData);
+  } catch (error) {
+    console.error(error);
+    window.alert(
+      error instanceof Error && error.message
+        ? error.message
+        : "The planner could not update that item."
+    );
+  } finally {
+    state.editingItemKeys.delete(itemKey);
+    render();
+  }
+}
+
 async function confirmAndDeleteItem(item, day) {
   if (!item.sourceInfo) {
     window.alert("This item cannot be deleted because its source metadata is missing.");
@@ -1114,7 +1239,7 @@ async function confirmAndDeleteItem(item, day) {
   }
 
   const deletionKey = getItemDeletionKey(item);
-  if (state.deletingItemKeys.has(deletionKey)) {
+  if (state.deletingItemKeys.has(deletionKey) || state.editingItemKeys.has(deletionKey)) {
     return;
   }
 
@@ -1342,6 +1467,8 @@ function getDisplayItemsForDay(day) {
   return rescheduleCurrentDayItems(day.items, getCurrentHourFloorMinute());
 }
 
+// The generated JSON already contains a schedule. Recompute only today's
+// auto-placed items so the timeline keeps pace with the current hour.
 function rescheduleCurrentDayItems(items, autoStartFloorMinute) {
   const effectiveAutoStartFloorMinute = Math.max(
     DEFAULT_SLOT_START_MINUTE,
@@ -1818,6 +1945,28 @@ function formatClock(totalMinutes) {
   const hours = String(Math.floor(totalMinutes / 60)).padStart(2, "0");
   const minutes = String(totalMinutes % 60).padStart(2, "0");
   return `${hours}:${minutes}`;
+}
+
+function formatTodoClock(totalMinutes) {
+  const hours = String(Math.floor(totalMinutes / 60)).padStart(2, "0");
+  const minutes = String(totalMinutes % 60).padStart(2, "0");
+  return `${hours}h${minutes}`;
+}
+
+function formatTodoDurationToken(minutes) {
+  const safeMinutes = Math.max(Math.round(minutes ?? 0), MIN_SLOT_MINUTES);
+  const hours = Math.floor(safeMinutes / 60);
+  const remainder = safeMinutes % 60;
+
+  if (!hours) {
+    return `${remainder}m`;
+  }
+
+  if (!remainder) {
+    return `${hours}h`;
+  }
+
+  return `${hours}h${String(remainder).padStart(2, "0")}`;
 }
 
 function formatDuration(minutes) {

@@ -103,6 +103,24 @@ If you only want a production build:
 npm run build
 ```
 
+## Tests
+
+Run:
+
+```powershell
+npm test
+```
+
+The test suite covers the parser, scheduler, and file mutation helpers in `scripts/planner-data.mjs`.
+
+## Maintainer map
+
+- `todolist/` is the source of truth.
+- `scripts/planner-data.mjs` parses todo files, applies agenda scheduling, and handles create/delete mutations.
+- `scripts/dev-server.mjs` rebuilds `dist/`, serves the static app, and exposes the local JSON API used by the UI.
+- `src/` contains the static client that renders `planner-data.json`.
+- `docs/ARCHITECTURE.md` has a longer walkthrough of the data flow and editing invariants.
+
 ## Planner behavior
 
 - The website aggregates all matching project files for the selected day.

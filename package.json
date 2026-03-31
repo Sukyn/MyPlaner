@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "node scripts/build.mjs",
-    "start": "node --watch scripts/dev-server.mjs"
+    "start": "node --watch scripts/dev-server.mjs",
+    "test": "node --test"
   }
 }

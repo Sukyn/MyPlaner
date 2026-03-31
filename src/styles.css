@@ -1,4 +1,4 @@
-﻿:root {
+:root {
   --bg: #f4efe6;
   --bg-strong: #efe5d6;
   --paper: rgba(255, 251, 245, 0.84);
@@ -617,7 +617,7 @@ textarea {
   display: grid;
   gap: 6px;
   position: relative;
-  padding-right: 34px;
+  padding-right: 64px;
 }
 
 .preview-item__line {
@@ -735,7 +735,7 @@ textarea {
 .agenda-card {
   position: relative;
   padding: 14px 16px;
-  padding-right: 42px;
+  padding-right: 70px;
   border-radius: 20px;
   border: 1px solid rgba(31, 43, 41, 0.1);
   background: rgba(255, 255, 255, 0.82);
@@ -882,7 +882,7 @@ textarea {
   left: calc((100% * var(--lane)) / var(--lane-count) + 4px);
   width: calc((100% / var(--lane-count)) - 8px);
   padding: 10px 12px;
-  padding-right: 34px;
+  padding-right: 62px;
   border-radius: 18px;
   border: 1px solid rgba(31, 43, 41, 0.12);
   background: rgba(255, 255, 255, 0.9);
@@ -950,10 +950,16 @@ textarea {
   color: var(--ink);
 }
 
-.item-delete-button {
+.item-actions {
   position: absolute;
   top: 8px;
   right: 8px;
+  display: inline-flex;
+  gap: 4px;
+  z-index: 2;
+}
+
+.item-action-button {
   width: 24px;
   height: 24px;
   border: 0;
@@ -968,7 +974,18 @@ textarea {
   place-items: center;
   cursor: pointer;
   transition: background 160ms ease, color 160ms ease, transform 160ms ease;
-  z-index: 2;
+}
+
+.item-action-button:disabled {
+  cursor: wait;
+  opacity: 0.5;
+}
+
+.item-edit-button:hover,
+.item-edit-button:focus-visible {
+  background: rgba(49, 93, 146, 0.12);
+  color: var(--event);
+  transform: scale(1.06);
 }
 
 .item-delete-button:hover,
@@ -978,17 +995,12 @@ textarea {
   transform: scale(1.06);
 }
 
-.item-delete-button:disabled {
-  cursor: wait;
-  opacity: 0.5;
-}
-
-.preview-item .item-delete-button {
+.preview-item .item-actions {
   top: 10px;
   right: 10px;
 }
 
-.agenda-entry .item-delete-button {
+.agenda-entry .item-actions {
   top: 6px;
   right: 6px;
 }
@@ -1145,6 +1157,7 @@ textarea {
     left: 4px;
     width: calc(100% - 8px);
     padding: 12px;
+    padding-right: 62px;
   }
 
 }

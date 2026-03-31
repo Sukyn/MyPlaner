@@ -8,7 +8,8 @@ import {
   createPlannerItem,
   createPlannerProject,
   deletePlannerItem,
-  fileExists
+  fileExists,
+  updatePlannerItem
 } from "./planner-data.mjs";
 
 const rootDir = process.cwd();
@@ -30,6 +31,8 @@ async function buildAndLog() {
   return result;
 }
 
+// Rebuilds can come from both file watching and API writes. Serialize them so
+// `dist/` never sees overlapping builds or mixed planner snapshots.
 function queueBuild() {
   const nextBuild = buildQueue.catch(() => undefined).then(() => buildSite({ rootDir }));
   buildQueue = nextBuild;
@@ -95,6 +98,8 @@ async function startServer() {
   }
 }
 
+// The local server exposes a tiny mutation API and otherwise serves the
+// generated static bundle, falling back to `index.html` for app routes.
 function createPlannerServer() {
   return createServer(async (request, response) => {
     const requestUrl = new URL(request.url || "/", "http://localhost");
@@ -102,6 +107,11 @@ function createPlannerServer() {
 
     if (request.method === "POST" && pathname === "/api/items/delete") {
       await handleDeleteItemRequest(request, response);
+      return;
+    }
+
+    if (request.method === "POST" && pathname === "/api/items/update") {
+      await handleUpdateItemRequest(request, response);
       return;
     }
 
@@ -224,6 +234,41 @@ async function handleDeleteItemRequest(request, response) {
   }
 }
 
+async function handleUpdateItemRequest(request, response) {
+  try {
+    const payload = await readJsonBody(request);
+    const updatedItem = await updatePlannerItem({
+      rootDir,
+      sourceInfo: payload?.sourceInfo,
+      text: payload?.text
+    });
+    const result = await buildAndLog();
+
+    response.writeHead(200, {
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "no-store"
+    });
+    response.end(
+      JSON.stringify({
+        ok: true,
+        item: updatedItem,
+        plannerData: result.plannerData
+      })
+    );
+  } catch (error) {
+    response.writeHead(400, {
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "no-store"
+    });
+    response.end(
+      JSON.stringify({
+        ok: false,
+        error: error instanceof Error ? error.message : "Item update failed."
+      })
+    );
+  }
+}
+
 async function handleCreateItemRequest(request, response) {
   try {
     const payload = await readJsonBody(request);
@@ -292,6 +337,8 @@ async function handleCreateProjectRequest(request, response) {
   }
 }
 
+// The local API only accepts small JSON payloads, so dependency-free body
+// parsing is enough here.
 async function readJsonBody(request) {
   const chunks = [];
 

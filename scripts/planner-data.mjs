@@ -2,6 +2,14 @@ import { existsSync } from "node:fs";
 import { cp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
+/**
+ * Planner data pipeline.
+ *
+ * Responsibilities:
+ * 1. Read `todolist/` and normalize markdown plus recurring rules.
+ * 2. Schedule every item into an agenda-friendly JSON payload.
+ * 3. Apply the file mutations used by the local create/delete API.
+ */
 const WEEKDAY_NAMES = [
   "Sunday",
   "Monday",
@@ -166,7 +174,7 @@ export async function buildSite({ rootDir = process.cwd() } = {}) {
 
 export async function deletePlannerItem({ rootDir = process.cwd(), sourceInfo } = {}) {
   const todoDir = path.join(rootDir, "todolist");
-  const normalizedSourceInfo = normalizeDeleteSourceInfo(sourceInfo);
+  const normalizedSourceInfo = normalizeItemSourceInfo(sourceInfo, "Delete request");
   const filepath = resolveTodoChildPath(todoDir, normalizedSourceInfo.relativePath);
 
   if (normalizedSourceInfo.type === "daily-file") {
@@ -175,6 +183,22 @@ export async function deletePlannerItem({ rootDir = process.cwd(), sourceInfo } 
 
   if (normalizedSourceInfo.type === "recurring-rule") {
     return deleteRecurringRuleFromFile({ filepath, sourceInfo: normalizedSourceInfo });
+  }
+
+  throw new Error(`Unsupported planner source type "${normalizedSourceInfo.type}".`);
+}
+
+export async function updatePlannerItem({ rootDir = process.cwd(), sourceInfo, text } = {}) {
+  const todoDir = path.join(rootDir, "todolist");
+  const normalizedSourceInfo = normalizeItemSourceInfo(sourceInfo, "Update request");
+  const filepath = resolveTodoChildPath(todoDir, normalizedSourceInfo.relativePath);
+
+  if (normalizedSourceInfo.type === "daily-file") {
+    return updateDailyItemInFile({ filepath, sourceInfo: normalizedSourceInfo, text });
+  }
+
+  if (normalizedSourceInfo.type === "recurring-rule") {
+    return updateRecurringRuleInFile({ filepath, sourceInfo: normalizedSourceInfo, text });
   }
 
   throw new Error(`Unsupported planner source type "${normalizedSourceInfo.type}".`);
@@ -245,6 +269,8 @@ export async function createPlannerItem({ rootDir = process.cwd(), item } = {}) 
   };
 }
 
+// Aggregate every project first, then materialize the full planner range so
+// dated files, recurring rules, and quiet days all share the same JSON shape.
 async function parseTodoDirectory({ todoDir }) {
   const now = new Date();
   const currentDate = toIsoDate(now);
@@ -813,6 +839,20 @@ function normalizeNewItemInput(item) {
   };
 }
 
+function normalizeUpdatedItemText(value) {
+  const normalized = String(value ?? "")
+    .replace(/\r?\n+/g, " ")
+    .replace(/^\s*[-*]\s+(?:\[(?: |x|X)\]\s+)?/, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+
+  if (!normalized) {
+    throw new Error("Update request needs a non-empty item.");
+  }
+
+  return normalized;
+}
+
 function normalizeProjectCategoryKey(value) {
   const normalized = String(value ?? "").trim().toLowerCase();
 
@@ -895,6 +935,8 @@ function createDailyMarkdown(date, kind, bulletLine) {
   return [`# ${date}`, "", `## ${KIND_SECTION_TITLES[kind]}`, `- ${bulletLine}`].join("\n");
 }
 
+// Keep markdown edits predictable: append inside an existing section when
+// possible, otherwise insert a new section in canonical planner-kind order.
 function insertDailyItemIntoMarkdown(markdown, { date, kind, bulletLine }) {
   const lines = markdown ? markdown.split(/\r?\n/) : [];
   const workingLines = normalizeMarkdownLines(lines);
@@ -973,9 +1015,9 @@ function findSectionPlacementIndex(lines, kind) {
   return -1;
 }
 
-function normalizeDeleteSourceInfo(sourceInfo) {
+function normalizeItemSourceInfo(sourceInfo, actionLabel = "Item request") {
   if (!sourceInfo || typeof sourceInfo !== "object" || Array.isArray(sourceInfo)) {
-    throw new Error("Delete request missing item source info.");
+    throw new Error(`${actionLabel} missing item source info.`);
   }
 
   const type = String(sourceInfo.type ?? "").trim();
@@ -983,15 +1025,15 @@ function normalizeDeleteSourceInfo(sourceInfo) {
   const fingerprint = String(sourceInfo.fingerprint ?? "").trim();
 
   if (!type) {
-    throw new Error("Delete request is missing the source type.");
+    throw new Error(`${actionLabel} is missing the source type.`);
   }
 
   if (!relativePath) {
-    throw new Error("Delete request is missing the source file path.");
+    throw new Error(`${actionLabel} is missing the source file path.`);
   }
 
   if (!fingerprint) {
-    throw new Error("Delete request is missing the item fingerprint.");
+    throw new Error(`${actionLabel} is missing the item fingerprint.`);
   }
 
   if (type === "daily-file") {
@@ -1013,7 +1055,7 @@ function normalizeDeleteSourceInfo(sourceInfo) {
     };
   }
 
-  throw new Error(`Delete request uses an unsupported source type "${type}".`);
+  throw new Error(`${actionLabel} uses an unsupported source type "${type}".`);
 }
 
 function resolveTodoChildPath(todoDir, relativePath) {
@@ -1021,10 +1063,88 @@ function resolveTodoChildPath(todoDir, relativePath) {
   const candidate = path.resolve(resolvedTodoDir, relativePath);
 
   if (candidate !== resolvedTodoDir && !candidate.startsWith(`${resolvedTodoDir}${path.sep}`)) {
-    throw new Error("Delete request uses an invalid todo path.");
+    throw new Error("Planner item request uses an invalid todo path.");
   }
 
   return candidate;
+}
+
+async function updateDailyItemInFile({ filepath, sourceInfo, text }) {
+  if (path.extname(filepath).toLowerCase() !== ".md") {
+    throw new Error(`Expected a markdown todo file for ${sourceInfo.relativePath}.`);
+  }
+
+  if (!fileExists(filepath)) {
+    throw new Error(`Could not find ${sourceInfo.relativePath}. Refresh the planner and try again.`);
+  }
+
+  const normalizedText = normalizeUpdatedItemText(text);
+  const markdown = await readFile(filepath, "utf8");
+  const parsedItems = parseDailyTodoFile(markdown);
+  const matchIndex = findDailyItemMatchIndex(parsedItems, sourceInfo);
+
+  if (matchIndex === -1) {
+    throw new Error(`Could not locate the requested item in ${sourceInfo.relativePath}. Refresh the planner and try again.`);
+  }
+
+  const targetLineNumber = parsedItems[matchIndex].sourceInfo.lineNumber;
+  const lines = markdown.split(/\r?\n/);
+  lines[targetLineNumber - 1] = `- ${normalizedText}`;
+
+  await writeFile(filepath, ensureTrailingNewline(normalizeMarkdownLines(lines).join("\n")), "utf8");
+
+  return {
+    relativePath: sourceInfo.relativePath
+  };
+}
+
+async function updateRecurringRuleInFile({ filepath, sourceInfo, text }) {
+  if (path.extname(filepath).toLowerCase() !== ".json") {
+    throw new Error(`Expected a recurring JSON file for ${sourceInfo.relativePath}.`);
+  }
+
+  if (!fileExists(filepath)) {
+    throw new Error(`Could not find ${sourceInfo.relativePath}. Refresh the planner and try again.`);
+  }
+
+  const normalizedText = normalizeUpdatedItemText(text);
+  let parsed;
+
+  try {
+    parsed = JSON.parse(await readFile(filepath, "utf8"));
+  } catch (error) {
+    throw new Error(`Could not parse ${sourceInfo.relativePath}: ${error.message}`);
+  }
+
+  const rawRules = Array.isArray(parsed) ? parsed : parsed?.rules;
+  if (!Array.isArray(rawRules)) {
+    throw new Error(`Expected ${sourceInfo.relativePath} to contain a JSON array or a "rules" array.`);
+  }
+
+  const normalizedRules = rawRules.map((rule, index) => normalizeRecurringRule(rule, { filepath, index }));
+  const matchIndex = findRecurringRuleMatchIndex(normalizedRules, sourceInfo);
+
+  if (matchIndex === -1) {
+    throw new Error(`Could not locate the requested recurring rule in ${sourceInfo.relativePath}. Refresh the planner and try again.`);
+  }
+
+  const currentRule = rawRules[matchIndex];
+  if (!currentRule || typeof currentRule !== "object" || Array.isArray(currentRule)) {
+    throw new Error(`Expected recurring rule #${matchIndex + 1} in ${sourceInfo.relativePath} to be an object.`);
+  }
+
+  const nextRules = [...rawRules];
+  nextRules[matchIndex] = {
+    ...currentRule,
+    text: normalizedText
+  };
+
+  const nextDocument = Array.isArray(parsed) ? nextRules : { ...parsed, rules: nextRules };
+  await writeFile(filepath, `${JSON.stringify(nextDocument, null, 2)}\n`, "utf8");
+
+  return {
+    relativePath: sourceInfo.relativePath
+  };
 }
 
 async function deleteDailyItemFromFile({ filepath, sourceInfo }) {
@@ -1114,6 +1234,8 @@ async function deleteRecurringRuleFromFile({ filepath, sourceInfo }) {
   };
 }
 
+// Fingerprints identify the logical item and the stored line/item indexes
+// disambiguate duplicates that would otherwise look identical.
 function findDailyItemMatchIndex(items, sourceInfo) {
   const candidates = items
     .map((item, index) => ({
@@ -1165,6 +1287,8 @@ function findRecurringRuleMatchIndex(rules, sourceInfo) {
   return candidates[0].index;
 }
 
+// Deletes operate one bullet line at a time. Normalize the surrounding
+// markdown afterwards so empty sections disappear and spacing stays stable.
 function cleanupDailyTodoMarkdown(input) {
   const lines = Array.isArray(input) ? [...input] : String(input ?? "").split(/\r?\n/);
   const output = [];
@@ -1272,6 +1396,8 @@ function formatTodoDurationToken(minutes) {
   return `${hours}h${String(remainder).padStart(2, "0")}`;
 }
 
+// Timing hints come from several parsers. Merge them into one normalized
+// contract so the agenda scheduler only reasons about a single shape.
 function buildTimingMetadata({
   kind,
   explicitSlot,
@@ -1463,6 +1589,8 @@ function sortItems(left, right) {
   return order[left.kind] - order[right.kind] || left.order - right.order;
 }
 
+// Schedule in two passes: reserve explicit/anchored slots first, then pack
+// flexible work into the remaining gaps.
 function scheduleDayItems(
   items,
   {
@@ -1541,6 +1669,8 @@ function scheduleDayItems(
   };
 }
 
+// Flexible items honor relative windows when possible, but will still be
+// placed later in the day rather than disappearing from the agenda.
 function placeFlexibleAgendaEntry(
   item,
   durationMinutes,
@@ -1830,7 +1960,7 @@ function extractTaggedDuration(text) {
 
 function extractLeadingTimeSlot(text) {
   const rangeMatch = text.match(
-    /^\s*(\d{1,2}(?::\d{2}|h\d{0,2}(?:m\d{0,2}(?:s\d{0,2})?)?))(?:\s*(?:-|–|—|to)\s*)(\d{1,2}(?::\d{2}|h\d{0,2}(?:m\d{0,2}(?:s\d{0,2})?)?))\s+(.+)$/i
+    /^\s*(\d{1,2}(?::\d{2}|h\d{0,2}(?:m\d{0,2}(?:s\d{0,2})?)?))(?:\s*(?:-|\u2013|\u2014|to)\s*)(\d{1,2}(?::\d{2}|h\d{0,2}(?:m\d{0,2}(?:s\d{0,2})?)?))\s+(.+)$/i
   );
 
   if (rangeMatch) {
@@ -1880,7 +2010,7 @@ function extractInlineTimeRange(text) {
   }
 
   const rangeMatch = text.match(
-    /\b(\d{1,2}(?::\d{2}|h\d{0,2}(?:m\d{0,2})?))(?:\s*(?:-|–|—|to)\s*)(\d{1,2}(?::\d{2}|h\d{0,2}(?:m\d{0,2})?))\b/i
+    /\b(\d{1,2}(?::\d{2}|h\d{0,2}(?:m\d{0,2})?))(?:\s*(?:-|\u2013|\u2014|to)\s*)(\d{1,2}(?::\d{2}|h\d{0,2}(?:m\d{0,2})?))\b/i
   );
 
   if (!rangeMatch) {
@@ -1951,7 +2081,7 @@ function extractRelativeTimeWindow(text, direction) {
 
   const rangeMatch = text.match(
     new RegExp(
-      `\\b${direction}\\b[^.\\n]*?(\\d{1,2}(?::\\d{2}|h\\d{0,2}(?:m\\d{0,2})?))(?:\\s*(?:-|–|—|to)\\s*)(\\d{1,2}(?::\\d{2}|h\\d{0,2}(?:m\\d{0,2})?))`,
+      `\\b${direction}\\b[^.\\n]*?(\\d{1,2}(?::\\d{2}|h\\d{0,2}(?:m\\d{0,2})?))(?:\\s*(?:-|\\u2013|\\u2014|to)\\s*)(\\d{1,2}(?::\\d{2}|h\\d{0,2}(?:m\\d{0,2})?))`,
       "i"
     )
   );
