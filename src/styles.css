@@ -1,21 +1,27 @@
 :root {
-  --bg: #f4efe6;
-  --bg-strong: #efe5d6;
-  --paper: rgba(255, 251, 245, 0.84);
-  --paper-strong: rgba(255, 249, 241, 0.94);
-  --ink: #1f2b29;
-  --muted: #596968;
-  --line: rgba(40, 62, 61, 0.14);
-  --shadow: 0 18px 60px rgba(39, 53, 54, 0.12);
-  --task: #b9782d;
-  --cadence: #3c7165;
-  --deadline: #b84b32;
-  --event: #315d92;
-  --milestone: #7c5d94;
-  --chip: rgba(31, 43, 41, 0.06);
-  --selected: rgba(51, 104, 96, 0.14);
-  --display: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
-  --body: "Aptos", "Segoe UI", "Trebuchet MS", sans-serif;
+  --bg: #f2f8ff;
+  --bg-strong: #dfeeff;
+  --paper: rgba(255, 255, 255, 0.76);
+  --paper-strong: rgba(252, 254, 255, 0.92);
+  --ink: #101b45;
+  --muted: #5f6d94;
+  --line: rgba(70, 110, 197, 0.16);
+  --line-strong: rgba(74, 140, 255, 0.28);
+  --shadow: 0 24px 70px rgba(45, 79, 155, 0.14);
+  --task: #ff9d1f;
+  --cadence: #07b6a4;
+  --deadline: #ff6276;
+  --event: #2f7cff;
+  --milestone: #8a62ff;
+  --chip: rgba(47, 124, 255, 0.08);
+  --selected: rgba(52, 217, 255, 0.18);
+  --signal-cyan: #34d9ff;
+  --signal-rose: #ff7ac6;
+  --signal-amber: #ffc857;
+  --signal-mint: #67f5c8;
+  --display: "Teko", "Bahnschrift SemiCondensed", "Arial Narrow", sans-serif;
+  --body: "Space Grotesk", "Aptos", "Segoe UI", "Trebuchet MS", sans-serif;
+  --mono: "Orbitron", "Bahnschrift", "Segoe UI", sans-serif;
 }
 
 * {
@@ -31,11 +37,46 @@ body {
   min-height: 100vh;
   font-family: var(--body);
   color: var(--ink);
-  background: #e7e3dc;
+  position: relative;
+  overflow-x: hidden;
+  background:
+    radial-gradient(circle at 14% 18%, rgba(52, 217, 255, 0.24), transparent 18%),
+    radial-gradient(circle at 86% 12%, rgba(255, 122, 198, 0.18), transparent 20%),
+    radial-gradient(circle at 78% 78%, rgba(255, 200, 87, 0.18), transparent 22%),
+    linear-gradient(145deg, #f8fbff 0%, #e5f0ff 42%, #fff6ef 100%);
 }
 
 body::before {
-  content: none;
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(
+      135deg,
+      rgba(47, 124, 255, 0.03) 0 12px,
+      transparent 12px 36px
+    );
+  opacity: 0.68;
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  top: 54%;
+  right: -96px;
+  width: 360px;
+  height: 360px;
+  border-radius: 999px;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at center, rgba(255, 255, 255, 0.44), transparent 58%),
+    repeating-radial-gradient(
+      circle at center,
+      rgba(47, 124, 255, 0.1) 0 14px,
+      transparent 14px 30px
+    );
+  opacity: 0.65;
 }
 
 button,
@@ -49,11 +90,12 @@ textarea {
   width: min(1600px, calc(100vw - 32px));
   margin: 0 auto;
   padding: 24px 0 40px;
+  position: relative;
 }
 
 .panel,
 .day-card {
-  backdrop-filter: blur(14px);
+  backdrop-filter: blur(18px);
 }
 
 .panel__header h2,
@@ -62,6 +104,9 @@ textarea {
   margin: 0;
   font-family: var(--display);
   font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  line-height: 0.98;
 }
 
 .main-grid {
@@ -84,10 +129,39 @@ textarea {
 .panel {
   border: 1px solid var(--line);
   border-radius: 24px;
-  background: var(--paper);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(243, 248, 255, 0.72));
   box-shadow: var(--shadow);
   padding: 20px;
   animation: rise-in 520ms ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.panel::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: linear-gradient(
+    90deg,
+    rgba(52, 217, 255, 0.2),
+    rgba(52, 217, 255, 0.92) 25%,
+    rgba(255, 122, 198, 0.82) 58%,
+    rgba(255, 200, 87, 0.9)
+  );
+}
+
+.panel::after {
+  content: "";
+  position: absolute;
+  right: -64px;
+  bottom: -74px;
+  width: 180px;
+  height: 180px;
+  border-radius: 999px;
+  background: radial-gradient(circle at center, rgba(255, 255, 255, 0.48), transparent 68%);
+  pointer-events: none;
 }
 
 .sidebar,
@@ -117,6 +191,21 @@ textarea {
   margin-bottom: 18px;
 }
 
+.panel__header-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.panel-kicker {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--event);
+}
+
 .panel--collapsible .panel__header {
   margin-bottom: 0;
 }
@@ -144,25 +233,36 @@ textarea {
 }
 
 .panel-toggle:focus-visible {
-  outline: 2px solid rgba(60, 113, 101, 0.34);
+  outline: 2px solid rgba(47, 124, 255, 0.34);
   outline-offset: 6px;
 }
 
 .panel-toggle__title {
   font-family: var(--display);
-  font-size: 1.85rem;
+  font-size: 2rem;
   font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .panel-toggle__icon {
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.92), rgba(230, 241, 255, 0.78));
+  color: var(--event);
+  display: inline-grid;
+  place-items: center;
   font-size: 1.2rem;
-  color: var(--muted);
-  transition: transform 160ms ease, color 160ms ease;
+  box-shadow: 0 10px 22px rgba(47, 124, 255, 0.12);
+  transition: transform 160ms ease, color 160ms ease, box-shadow 160ms ease;
 }
 
 .panel-toggle:hover .panel-toggle__icon,
 .panel-toggle:focus-visible .panel-toggle__icon {
   color: var(--ink);
+  box-shadow: 0 14px 26px rgba(52, 217, 255, 0.18);
 }
 
 .panel-toggle[aria-expanded="true"] .panel-toggle__icon {
@@ -172,6 +272,7 @@ textarea {
 .panel__meta {
   margin: 0;
   color: var(--muted);
+  line-height: 1.45;
 }
 
 .field {
@@ -182,7 +283,10 @@ textarea {
 
 .field span,
 .toggle {
-  font-size: 0.94rem;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
   color: var(--muted);
 }
 
@@ -191,10 +295,22 @@ textarea {
 .field textarea {
   width: 100%;
   padding: 12px 14px;
-  border: 1px solid rgba(31, 43, 41, 0.14);
+  border: 1px solid rgba(47, 124, 255, 0.14);
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.74);
   color: var(--ink);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.field input:focus,
+.field select:focus,
+.field textarea:focus {
+  outline: none;
+  border-color: rgba(47, 124, 255, 0.34);
+  box-shadow:
+    0 0 0 3px rgba(52, 217, 255, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
 }
 
 .field textarea {
@@ -252,10 +368,10 @@ textarea {
 .picker-trigger {
   width: 100%;
   min-height: 48px;
-  border: 1px solid rgba(31, 43, 41, 0.12);
+  border: 1px solid rgba(47, 124, 255, 0.14);
   border-radius: 16px;
   padding: 10px 14px;
-  background: rgba(255, 255, 255, 0.62);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(242, 247, 255, 0.72));
   color: var(--ink);
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -271,13 +387,13 @@ textarea {
 .picker-trigger:hover,
 .picker-trigger:focus-visible {
   transform: translateY(-1px);
-  border-color: rgba(60, 113, 101, 0.26);
-  background: rgba(255, 255, 255, 0.86);
+  border-color: rgba(47, 124, 255, 0.28);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(237, 246, 255, 0.84));
 }
 
 .picker-trigger[aria-expanded="true"] {
-  border-color: rgba(60, 113, 101, 0.34);
-  background: linear-gradient(135deg, rgba(216, 239, 232, 0.88), rgba(255, 251, 244, 0.96));
+  border-color: rgba(47, 124, 255, 0.34);
+  background: linear-gradient(135deg, rgba(214, 249, 255, 0.96), rgba(255, 243, 249, 0.92));
 }
 
 .picker-trigger:disabled {
@@ -288,8 +404,9 @@ textarea {
 
 .picker-trigger__label {
   grid-area: label;
-  font-size: 0.72rem;
-  letter-spacing: 0.08em;
+  font-family: var(--mono);
+  font-size: 0.64rem;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--muted);
 }
@@ -325,10 +442,11 @@ textarea {
   display: grid;
   gap: 8px;
   padding: 10px;
-  border: 1px solid rgba(31, 43, 41, 0.12);
+  border: 1px solid rgba(47, 124, 255, 0.14);
   border-radius: 18px;
-  background: rgba(255, 251, 245, 0.98);
-  box-shadow: 0 18px 38px rgba(31, 43, 41, 0.12);
+  background: rgba(250, 253, 255, 0.96);
+  box-shadow: 0 18px 38px rgba(47, 124, 255, 0.12);
+  backdrop-filter: blur(16px);
 }
 
 .picker-menu[hidden] {
@@ -357,10 +475,10 @@ textarea {
 .choice-button,
 .project-choice {
   width: 100%;
-  border: 1px solid rgba(31, 43, 41, 0.12);
+  border: 1px solid rgba(47, 124, 255, 0.12);
   border-radius: 16px;
   padding: 12px 14px;
-  background: rgba(255, 255, 255, 0.62);
+  background: rgba(255, 255, 255, 0.7);
   color: var(--ink);
   text-align: left;
   cursor: pointer;
@@ -372,14 +490,14 @@ textarea {
 .project-choice:hover,
 .project-choice:focus-visible {
   transform: translateY(-1px);
-  border-color: rgba(60, 113, 101, 0.26);
-  background: rgba(255, 255, 255, 0.86);
+  border-color: rgba(47, 124, 255, 0.26);
+  background: rgba(255, 255, 255, 0.92);
 }
 
 .choice-button.is-selected,
 .project-choice.is-selected {
-  border-color: rgba(60, 113, 101, 0.34);
-  background: linear-gradient(135deg, rgba(216, 239, 232, 0.88), rgba(255, 251, 244, 0.96));
+  border-color: rgba(47, 124, 255, 0.32);
+  background: linear-gradient(135deg, rgba(214, 249, 255, 0.96), rgba(255, 243, 249, 0.92));
 }
 
 .project-choice {
@@ -393,8 +511,9 @@ textarea {
 
 .project-choice__meta {
   color: var(--muted);
-  font-size: 0.75rem;
-  letter-spacing: 0.08em;
+  font-family: var(--mono);
+  font-size: 0.64rem;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
 }
 
@@ -430,20 +549,22 @@ textarea {
 }
 
 .button {
-  border: 1px solid rgba(31, 43, 41, 0.14);
+  border: 1px solid rgba(47, 124, 255, 0.16);
   border-radius: 999px;
   padding: 10px 14px;
   cursor: pointer;
-  transition: transform 160ms ease, background 160ms ease;
+  transition: transform 160ms ease, background 160ms ease, box-shadow 160ms ease;
+  box-shadow: 0 10px 22px rgba(47, 124, 255, 0.1);
 }
 
 .button:hover,
 .button:focus-visible {
   transform: translateY(-1px);
+  box-shadow: 0 14px 28px rgba(47, 124, 255, 0.14);
 }
 
 .button--ghost {
-  background: rgba(255, 255, 255, 0.62);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(235, 244, 255, 0.82));
   color: var(--ink);
 }
 
@@ -486,12 +607,18 @@ textarea {
 .month-block__header h3 {
   margin: 0;
   font-family: var(--display);
-  font-size: 1.55rem;
+  font-size: 1.7rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .month-block__header p {
   margin: 0;
   color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
 }
 
 .day-card {
@@ -501,23 +628,47 @@ textarea {
   width: 100%;
   text-align: left;
   padding: 16px;
-  border: 1px solid rgba(31, 43, 41, 0.1);
+  border: 1px solid rgba(47, 124, 255, 0.14);
   border-radius: 22px;
-  background: rgba(255, 255, 255, 0.58);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(241, 247, 255, 0.72));
   cursor: pointer;
-  transition: transform 170ms ease, border-color 170ms ease, background 170ms ease;
+  transition: transform 170ms ease, border-color 170ms ease, background 170ms ease, box-shadow 170ms ease;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 14px 28px rgba(47, 124, 255, 0.08);
+}
+
+.day-card::after {
+  content: "";
+  position: absolute;
+  right: -18px;
+  top: -18px;
+  width: 92px;
+  height: 92px;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at center, rgba(255, 255, 255, 0.48), transparent 46%),
+    repeating-radial-gradient(
+      circle at center,
+      rgba(47, 124, 255, 0.12) 0 8px,
+      transparent 8px 18px
+    );
+  opacity: 0.7;
+  pointer-events: none;
 }
 
 .day-card:hover,
 .day-card:focus-visible {
   transform: translateY(-2px);
-  border-color: rgba(60, 113, 101, 0.26);
-  background: rgba(255, 255, 255, 0.82);
+  border-color: rgba(47, 124, 255, 0.3);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(243, 248, 255, 0.84));
+  box-shadow: 0 22px 36px rgba(52, 217, 255, 0.14);
 }
 
 .day-card.is-selected {
-  border-color: rgba(60, 113, 101, 0.32);
-  background: linear-gradient(135deg, rgba(216, 239, 232, 0.9), rgba(255, 251, 244, 0.95));
+  border-color: rgba(47, 124, 255, 0.36);
+  background: linear-gradient(135deg, rgba(219, 250, 255, 0.96), rgba(255, 241, 248, 0.94));
+  box-shadow: 0 24px 40px rgba(52, 217, 255, 0.16);
 }
 
 .day-card__date {
@@ -577,6 +728,8 @@ textarea {
   padding: 7px 10px;
   background: var(--chip);
   color: var(--ink);
+  font-family: var(--mono);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.34);
 }
 
 .chip--task,
@@ -723,12 +876,13 @@ textarea {
   align-self: start;
   padding: 8px 12px;
   border-radius: 999px;
-  border: 1px solid rgba(60, 113, 101, 0.22);
-  background: rgba(60, 113, 101, 0.12);
+  border: 1px solid rgba(7, 182, 164, 0.24);
+  background: rgba(7, 182, 164, 0.14);
   color: var(--cadence);
-  font-size: 0.76rem;
+  font-family: var(--mono);
+  font-size: 0.72rem;
   font-weight: 600;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
 }
 
@@ -737,9 +891,9 @@ textarea {
   padding: 14px 16px;
   padding-right: 70px;
   border-radius: 20px;
-  border: 1px solid rgba(31, 43, 41, 0.1);
-  background: rgba(255, 255, 255, 0.82);
-  box-shadow: 0 10px 24px rgba(31, 43, 41, 0.06);
+  border: 1px solid rgba(47, 124, 255, 0.14);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(243, 248, 255, 0.84));
+  box-shadow: 0 12px 28px rgba(47, 124, 255, 0.09);
   display: grid;
   gap: 8px;
   cursor: pointer;
@@ -779,7 +933,8 @@ textarea {
 
 .agenda-card__title {
   font-family: var(--body);
-  font-size: 1.02rem;
+  font-size: 1rem;
+  font-weight: 500;
   line-height: 1.34;
   color: var(--ink);
   text-wrap: pretty;
@@ -800,8 +955,9 @@ textarea {
   position: absolute;
   left: 0;
   transform: translateY(-50%);
-  font-size: 0.78rem;
-  letter-spacing: 0.08em;
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--muted);
 }
@@ -810,8 +966,9 @@ textarea {
   position: absolute;
   left: 0;
   transform: translateY(-50%);
-  font-size: 0.68rem;
-  letter-spacing: 0.04em;
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
   color: rgba(89, 105, 104, 0.9);
 }
 
@@ -821,11 +978,12 @@ textarea {
   transform: translateY(-50%);
   padding: 4px 8px;
   border-radius: 999px;
-  background: rgba(60, 113, 101, 0.14);
+  background: rgba(52, 217, 255, 0.18);
   color: var(--cadence);
-  font-size: 0.7rem;
+  font-family: var(--mono);
+  font-size: 0.62rem;
   font-weight: 600;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
 }
 
@@ -834,7 +992,7 @@ textarea {
   left: 0;
   right: 0;
   height: 1px;
-  background: rgba(31, 43, 41, 0.12);
+  background: linear-gradient(90deg, rgba(47, 124, 255, 0.18), rgba(47, 124, 255, 0.04));
 }
 
 .timeline__now-line {
@@ -842,7 +1000,7 @@ textarea {
   left: 0;
   right: 0;
   height: 0;
-  border-top: 2px solid rgba(60, 113, 101, 0.46);
+  border-top: 2px solid rgba(52, 217, 255, 0.68);
   z-index: 1;
 }
 
@@ -863,7 +1021,7 @@ textarea {
   left: 0;
   width: 16px;
   height: 0;
-  border-top: 1px dashed rgba(31, 43, 41, 0.2);
+  border-top: 1px dashed rgba(47, 124, 255, 0.26);
 }
 
 .timeline__canvas::before {
@@ -873,7 +1031,7 @@ textarea {
   bottom: 0;
   left: 0;
   width: 1px;
-  background: rgba(31, 43, 41, 0.12);
+  background: linear-gradient(180deg, rgba(52, 217, 255, 0.42), rgba(47, 124, 255, 0.08));
 }
 
 .agenda-entry {
@@ -884,9 +1042,9 @@ textarea {
   padding: 10px 12px;
   padding-right: 62px;
   border-radius: 18px;
-  border: 1px solid rgba(31, 43, 41, 0.12);
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 10px 24px rgba(31, 43, 41, 0.08);
+  border: 1px solid rgba(47, 124, 255, 0.14);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(241, 247, 255, 0.88));
+  box-shadow: 0 12px 28px rgba(47, 124, 255, 0.1);
   display: grid;
   align-content: start;
   gap: 4px;
@@ -898,7 +1056,7 @@ textarea {
 
 .agenda-card:focus-visible,
 .agenda-entry:focus-visible {
-  outline: 2px solid rgba(60, 113, 101, 0.38);
+  outline: 2px solid rgba(47, 124, 255, 0.38);
   outline-offset: 2px;
 }
 
@@ -932,8 +1090,9 @@ textarea {
 }
 
 .agenda-entry__time {
-  font-size: 0.68rem;
-  letter-spacing: 0.02em;
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.1em;
   color: var(--muted);
   text-transform: uppercase;
 }
@@ -966,7 +1125,7 @@ textarea {
   border-radius: 999px;
   padding: 0;
   background: transparent;
-  color: rgba(89, 105, 104, 0.72);
+  color: rgba(95, 109, 148, 0.82);
   font-size: 1rem;
   font-weight: 500;
   line-height: 1;
@@ -1009,16 +1168,16 @@ textarea {
 .agenda-dialog {
   width: min(560px, calc(100vw - 28px));
   padding: 0;
-  border: 1px solid rgba(31, 43, 41, 0.12);
+  border: 1px solid rgba(47, 124, 255, 0.16);
   border-radius: 24px;
-  background: rgba(255, 251, 245, 0.98);
-  box-shadow: 0 28px 70px rgba(31, 43, 41, 0.2);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(242, 248, 255, 0.92));
+  box-shadow: 0 28px 70px rgba(45, 79, 155, 0.22);
 }
 
 .planner-dialog::backdrop,
 .agenda-dialog::backdrop {
-  background: rgba(31, 43, 41, 0.26);
-  backdrop-filter: blur(4px);
+  background: rgba(16, 27, 69, 0.2);
+  backdrop-filter: blur(8px);
 }
 
 .planner-dialog__panel,
@@ -1040,10 +1199,11 @@ textarea {
 
 .planner-dialog__eyebrow,
 .agenda-dialog__eyebrow {
-  font-size: 0.78rem;
-  letter-spacing: 0.08em;
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--event);
 }
 
 .planner-dialog__close,
@@ -1054,8 +1214,10 @@ textarea {
 .planner-dialog__title {
   margin: 6px 0 0;
   font-family: var(--display);
-  font-size: clamp(1.2rem, 1.1rem + 0.6vw, 1.6rem);
-  line-height: 1.24;
+  font-size: clamp(1.5rem, 1.2rem + 1vw, 2rem);
+  letter-spacing: 0.04em;
+  line-height: 1;
+  text-transform: uppercase;
 }
 
 .planner-dialog__body {
@@ -1079,8 +1241,10 @@ textarea {
 .agenda-dialog__body h3 {
   margin: 0;
   font-family: var(--display);
-  font-size: clamp(1.2rem, 1.1rem + 0.6vw, 1.6rem);
-  line-height: 1.28;
+  font-size: clamp(1.5rem, 1.2rem + 1vw, 1.95rem);
+  letter-spacing: 0.04em;
+  line-height: 1;
+  text-transform: uppercase;
 }
 
 .agenda-dialog__context {
@@ -1091,13 +1255,16 @@ textarea {
 .detail-group {
   padding: 16px;
   border-radius: 20px;
-  background: rgba(255, 255, 255, 0.58);
-  border: 1px solid rgba(31, 43, 41, 0.08);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.84), rgba(243, 248, 255, 0.74));
+  border: 1px solid rgba(47, 124, 255, 0.12);
+  box-shadow: 0 14px 28px rgba(47, 124, 255, 0.08);
 }
 
 .detail-group h3 {
   margin-bottom: 12px;
-  font-size: 1.15rem;
+  font-size: 1.35rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .detail-list li {
@@ -1154,6 +1321,13 @@ textarea {
   .app-shell {
     width: min(100vw - 20px, 100%);
     padding-top: 12px;
+  }
+
+  body::after {
+    width: 220px;
+    height: 220px;
+    right: -72px;
+    top: 66%;
   }
 
   .day-card {
