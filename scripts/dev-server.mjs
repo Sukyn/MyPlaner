@@ -240,7 +240,8 @@ async function handleUpdateItemRequest(request, response) {
     const updatedItem = await updatePlannerItem({
       rootDir,
       sourceInfo: payload?.sourceInfo,
-      text: payload?.text
+      text: payload?.text,
+      item: payload?.item
     });
     const result = await buildAndLog();
 

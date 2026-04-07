@@ -188,16 +188,33 @@ export async function deletePlannerItem({ rootDir = process.cwd(), sourceInfo } 
   throw new Error(`Unsupported planner source type "${normalizedSourceInfo.type}".`);
 }
 
-export async function updatePlannerItem({ rootDir = process.cwd(), sourceInfo, text } = {}) {
+export async function updatePlannerItem({ rootDir = process.cwd(), sourceInfo, text, item } = {}) {
   const todoDir = path.join(rootDir, "todolist");
   const normalizedSourceInfo = normalizeItemSourceInfo(sourceInfo, "Update request");
   const filepath = resolveTodoChildPath(todoDir, normalizedSourceInfo.relativePath);
 
   if (normalizedSourceInfo.type === "daily-file") {
+    if (item && typeof item === "object" && !Array.isArray(item)) {
+      return updateDailyItemWithPayload({
+        todoDir,
+        filepath,
+        sourceInfo: normalizedSourceInfo,
+        item
+      });
+    }
+
     return updateDailyItemInFile({ filepath, sourceInfo: normalizedSourceInfo, text });
   }
 
   if (normalizedSourceInfo.type === "recurring-rule") {
+    if (item && typeof item === "object" && !Array.isArray(item)) {
+      return updateRecurringRuleWithPayload({
+        filepath,
+        sourceInfo: normalizedSourceInfo,
+        item
+      });
+    }
+
     return updateRecurringRuleInFile({ filepath, sourceInfo: normalizedSourceInfo, text });
   }
 
@@ -881,6 +898,30 @@ function resolveProjectPath(value) {
   };
 }
 
+function resolveProjectKeyFromRelativePath(relativePath) {
+  const normalized = toPortablePath(String(relativePath ?? "").trim());
+  const [categoryKey, projectKey, ...rest] = normalized.split("/");
+
+  if (rest.length !== 1 || !categoryKey || !projectKey) {
+    throw new Error(`Planner item path "${relativePath}" does not point to a project item.`);
+  }
+
+  return `${normalizeProjectCategoryKey(categoryKey)}/${projectKey}`;
+}
+
+function resolveDailyDateFromRelativePath(relativePath) {
+  const normalized = toPortablePath(String(relativePath ?? "").trim());
+  const segments = normalized.split("/");
+  const filename = segments.at(-1) ?? "";
+  const match = filename.match(/^(\d{4}-\d{2}-\d{2})\.md$/);
+
+  if (!match) {
+    throw new Error(`Planner item path "${relativePath}" does not point to a dated markdown file.`);
+  }
+
+  return match[1];
+}
+
 function parseOptionalTimeInput(value) {
   if (value == null || value === "") {
     return null;
@@ -1098,6 +1139,85 @@ async function updateDailyItemInFile({ filepath, sourceInfo, text }) {
   };
 }
 
+async function updateDailyItemWithPayload({ todoDir, filepath, sourceInfo, item }) {
+  if (path.extname(filepath).toLowerCase() !== ".md") {
+    throw new Error(`Expected a markdown todo file for ${sourceInfo.relativePath}.`);
+  }
+
+  if (!fileExists(filepath)) {
+    throw new Error(`Could not find ${sourceInfo.relativePath}. Refresh the planner and try again.`);
+  }
+
+  const normalizedItem = normalizeNewItemInput(item);
+  const projectPath = resolveProjectPath(normalizedItem.projectKey);
+  const projectDir = resolveTodoChildPath(todoDir, `${projectPath.categoryKey}/${projectPath.projectKey}`);
+  if (!fileExists(projectDir)) {
+    throw new Error("The selected project could not be found. Refresh the planner and try again.");
+  }
+
+  const currentProjectKey = resolveProjectKeyFromRelativePath(sourceInfo.relativePath);
+  const currentDate = resolveDailyDateFromRelativePath(sourceInfo.relativePath);
+  const targetRelativePath = `${normalizedItem.projectKey}/${normalizedItem.date}.md`;
+  const targetFilepath = resolveTodoChildPath(todoDir, targetRelativePath);
+  const nextBulletLine = buildNewItemBulletLine(normalizedItem);
+  const markdown = await readFile(filepath, "utf8");
+  const parsedItems = parseDailyTodoFile(markdown);
+  const matchIndex = findDailyItemMatchIndex(parsedItems, sourceInfo);
+
+  if (matchIndex === -1) {
+    throw new Error(`Could not locate the requested item in ${sourceInfo.relativePath}. Refresh the planner and try again.`);
+  }
+
+  const matchedItem = parsedItems[matchIndex];
+  if (
+    currentProjectKey === normalizedItem.projectKey &&
+    currentDate === normalizedItem.date &&
+    matchedItem.kind === normalizedItem.kind
+  ) {
+    const targetLineNumber = matchedItem.sourceInfo.lineNumber;
+    const lines = markdown.split(/\r?\n/);
+    lines[targetLineNumber - 1] = `- ${nextBulletLine}`;
+
+    await writeFile(filepath, ensureTrailingNewline(normalizeMarkdownLines(lines).join("\n")), "utf8");
+
+    return {
+      relativePath: targetRelativePath
+    };
+  }
+
+  const sourceLines = markdown.split(/\r?\n/);
+  sourceLines.splice(matchedItem.sourceInfo.lineNumber - 1, 1);
+  const cleanedSourceMarkdown = cleanupDailyTodoMarkdown(sourceLines);
+  const isSameFile = targetRelativePath === sourceInfo.relativePath;
+  let targetMarkdown = "";
+
+  if (isSameFile) {
+    targetMarkdown = cleanedSourceMarkdown;
+  } else {
+    if (parseDailyTodoFile(cleanedSourceMarkdown).length) {
+      await writeFile(filepath, ensureTrailingNewline(cleanedSourceMarkdown), "utf8");
+    } else {
+      await rm(filepath, { force: true });
+    }
+
+    targetMarkdown = fileExists(targetFilepath) ? await readFile(targetFilepath, "utf8") : "";
+  }
+
+  const nextMarkdown = targetMarkdown
+    ? insertDailyItemIntoMarkdown(targetMarkdown, {
+        date: normalizedItem.date,
+        kind: normalizedItem.kind,
+        bulletLine: nextBulletLine
+      })
+    : createDailyMarkdown(normalizedItem.date, normalizedItem.kind, nextBulletLine);
+
+  await writeFile(targetFilepath, ensureTrailingNewline(nextMarkdown), "utf8");
+
+  return {
+    relativePath: targetRelativePath
+  };
+}
+
 async function updateRecurringRuleInFile({ filepath, sourceInfo, text }) {
   if (path.extname(filepath).toLowerCase() !== ".json") {
     throw new Error(`Expected a recurring JSON file for ${sourceInfo.relativePath}.`);
@@ -1137,6 +1257,67 @@ async function updateRecurringRuleInFile({ filepath, sourceInfo, text }) {
   nextRules[matchIndex] = {
     ...currentRule,
     text: normalizedText
+  };
+
+  const nextDocument = Array.isArray(parsed) ? nextRules : { ...parsed, rules: nextRules };
+  await writeFile(filepath, `${JSON.stringify(nextDocument, null, 2)}\n`, "utf8");
+
+  return {
+    relativePath: sourceInfo.relativePath
+  };
+}
+
+async function updateRecurringRuleWithPayload({ filepath, sourceInfo, item }) {
+  if (path.extname(filepath).toLowerCase() !== ".json") {
+    throw new Error(`Expected a recurring JSON file for ${sourceInfo.relativePath}.`);
+  }
+
+  if (!fileExists(filepath)) {
+    throw new Error(`Could not find ${sourceInfo.relativePath}. Refresh the planner and try again.`);
+  }
+
+  const normalizedItem = normalizeNewItemInput(item);
+  const originalDate = String(item?.originalDate ?? normalizedItem.date ?? "").trim();
+  const currentProjectKey = resolveProjectKeyFromRelativePath(sourceInfo.relativePath);
+
+  if (normalizedItem.projectKey !== currentProjectKey) {
+    throw new Error("Recurring items cannot move to another project yet.");
+  }
+
+  if (originalDate && normalizedItem.date !== originalDate) {
+    throw new Error("Recurring items cannot move to another day yet.");
+  }
+
+  let parsed;
+
+  try {
+    parsed = JSON.parse(await readFile(filepath, "utf8"));
+  } catch (error) {
+    throw new Error(`Could not parse ${sourceInfo.relativePath}: ${error.message}`);
+  }
+
+  const rawRules = Array.isArray(parsed) ? parsed : parsed?.rules;
+  if (!Array.isArray(rawRules)) {
+    throw new Error(`Expected ${sourceInfo.relativePath} to contain a JSON array or a "rules" array.`);
+  }
+
+  const normalizedRules = rawRules.map((rule, index) => normalizeRecurringRule(rule, { filepath, index }));
+  const matchIndex = findRecurringRuleMatchIndex(normalizedRules, sourceInfo);
+
+  if (matchIndex === -1) {
+    throw new Error(`Could not locate the requested recurring rule in ${sourceInfo.relativePath}. Refresh the planner and try again.`);
+  }
+
+  const currentRule = rawRules[matchIndex];
+  if (!currentRule || typeof currentRule !== "object" || Array.isArray(currentRule)) {
+    throw new Error(`Expected recurring rule #${matchIndex + 1} in ${sourceInfo.relativePath} to be an object.`);
+  }
+
+  const nextRules = [...rawRules];
+  nextRules[matchIndex] = {
+    ...currentRule,
+    kind: normalizedItem.kind,
+    text: buildNewItemBulletLine(normalizedItem)
   };
 
   const nextDocument = Array.isArray(parsed) ? nextRules : { ...parsed, rules: nextRules };

@@ -90,8 +90,9 @@ test("buildSite aggregates scheduled and recurring items", async (t) => {
 
   const followUp = workDay.items.find((item) => item.text.includes("write the summary"));
   assert.ok(followUp);
-  assert.equal(followUp.agenda.slotLabel, "10:00-10:30");
   assert.equal(followUp.agenda.scheduleKind, "auto");
+  assert.equal(followUp.agenda.durationMinutes, 30);
+  assert.ok(followUp.agenda.startMinute >= 10 * 60);
 
   const recurringDay = plannerData.days.find((day) => day.date === "2026-04-06");
   assert.ok(recurringDay);
@@ -207,6 +208,67 @@ test("updatePlannerItem updates the correct duplicate daily entry", async (t) =>
   assert.ok(refreshedDay.items.some((item) => item.text === "Review summary"));
 });
 
+test("updatePlannerItem can move a daily item to another project, day, and section", async (t) => {
+  const rootDir = await createWorkspace(t, {
+    "todolist/professional/demo/project.json": '{\n  "label": "Demo Project"\n}\n',
+    "todolist/professional/other/project.json": '{\n  "label": "Other Project"\n}\n',
+    "todolist/professional/demo/2026-04-09.md": `# 2026-04-09
+
+## Tasks
+- Write summary @45m
+`,
+    "todolist/professional/other/2026-04-10.md": `# 2026-04-10
+
+## Tasks
+- Existing task
+`
+  });
+
+  const { plannerData } = await buildSite({ rootDir });
+  const sourceDay = plannerData.days.find((entry) => entry.date === "2026-04-09");
+  const sourceItem = sourceDay.items.find((item) => item.text === "Write summary");
+
+  assert.ok(sourceItem);
+
+  const updated = await updatePlannerItem({
+    rootDir,
+    sourceInfo: sourceItem.sourceInfo,
+    item: {
+      projectKey: "professional/other",
+      date: "2026-04-10",
+      kind: "event",
+      text: "Moved review",
+      startTime: "14:00",
+      endTime: "15:30"
+    }
+  });
+
+  const sourceFile = path.join(rootDir, "todolist", "professional", "demo", "2026-04-09.md");
+  const targetFile = path.join(rootDir, "todolist", "professional", "other", "2026-04-10.md");
+  const targetMarkdown = await readFile(targetFile, "utf8");
+  const refreshed = await buildSite({ rootDir });
+  const targetDay = refreshed.plannerData.days.find((entry) => entry.date === "2026-04-10");
+  const movedItem = targetDay.items.find((item) => item.text === "Moved review");
+
+  assert.equal(updated.relativePath, "professional/other/2026-04-10.md");
+  assert.equal(await pathExists(sourceFile), false);
+  assert.equal(
+    targetMarkdown,
+    `# 2026-04-10
+
+## Tasks
+- Existing task
+
+## Events
+- 14h00-15h30 Moved review
+`
+  );
+  assert.equal(movedItem.categoryKey, "professional");
+  assert.equal(movedItem.projectKey, "other");
+  assert.equal(movedItem.kind, "event");
+  assert.equal(movedItem.agenda.slotLabel, "14:00-15:30");
+});
+
 test("updatePlannerItem updates a recurring rule in place", async (t) => {
   const rootDir = await createWorkspace(t, {
     "todolist/professional/demo/project.json": '{\n  "label": "Demo Project"\n}\n',
@@ -249,6 +311,60 @@ test("updatePlannerItem updates a recurring rule in place", async (t) => {
   assert.equal(updated.relativePath, "professional/demo/recurring.json");
   assert.equal(recurringDocument.rules[0].text, "09h00-09h30 Weekly standup");
   assert.equal(refreshedItem.text, "Weekly standup");
+  assert.equal(refreshedItem.agenda.slotLabel, "09:00-09:30");
+});
+
+test("updatePlannerItem accepts a structured payload for recurring rules", async (t) => {
+  const rootDir = await createWorkspace(t, {
+    "todolist/professional/demo/project.json": '{\n  "label": "Demo Project"\n}\n',
+    "todolist/professional/demo/recurring.json": `{
+  "rules": [
+    {
+      "kind": "cadence",
+      "text": "Review roadmap",
+      "schedule": {
+        "type": "monthly",
+        "days": [10]
+      },
+      "startDate": "2026-04-10",
+      "endDate": "2026-04-10"
+    }
+  ]
+}
+`
+  });
+
+  const { plannerData } = await buildSite({ rootDir });
+  const recurringDay = plannerData.days.find((day) => day.date === "2026-04-10");
+  const recurringItem = recurringDay.items.find((item) => item.source === "recurring-rule");
+
+  assert.ok(recurringItem);
+
+  await updatePlannerItem({
+    rootDir,
+    sourceInfo: recurringItem.sourceInfo,
+    item: {
+      projectKey: "professional/demo",
+      originalDate: "2026-04-10",
+      date: "2026-04-10",
+      kind: "event",
+      text: "Roadmap review",
+      startTime: "09:00",
+      endTime: "09:30"
+    }
+  });
+
+  const recurringDocument = JSON.parse(
+    await readFile(path.join(rootDir, "todolist", "professional", "demo", "recurring.json"), "utf8")
+  );
+  const refreshed = await buildSite({ rootDir });
+  const refreshedDay = refreshed.plannerData.days.find((day) => day.date === "2026-04-10");
+  const refreshedItem = refreshedDay.items.find((item) => item.source === "recurring-rule");
+
+  assert.equal(recurringDocument.rules[0].kind, "event");
+  assert.equal(recurringDocument.rules[0].text, "09h00-09h30 Roadmap review");
+  assert.equal(refreshedItem.kind, "event");
+  assert.equal(refreshedItem.text, "Roadmap review");
   assert.equal(refreshedItem.agenda.slotLabel, "09:00-09:30");
 });
 

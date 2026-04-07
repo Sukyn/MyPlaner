@@ -43,76 +43,13 @@
                 id="new-item-panel-toggle"
                 class="panel-toggle"
                 type="button"
+                aria-haspopup="dialog"
                 aria-expanded="false"
-                aria-controls="new-item-panel-body"
+                aria-controls="new-item-dialog"
               >
                 <span class="panel-toggle__title">Add Item</span>
                 <span class="panel-toggle__icon" aria-hidden="true">+</span>
               </button>
-            </div>
-
-            <div id="new-item-panel-body" class="panel__content" hidden>
-              <form id="new-item-form" class="planner-form">
-                <label class="field field--compact">
-                  <input
-                    id="new-item-text"
-                    type="text"
-                    placeholder="New item..."
-                    aria-label="Item title"
-                    required
-                  />
-                </label>
-
-                <div class="form-row form-row--composer">
-                  <div class="picker">
-                    <button
-                      id="new-item-kind-trigger"
-                      class="picker-trigger"
-                      type="button"
-                      aria-haspopup="listbox"
-                      aria-expanded="false"
-                    ></button>
-                    <div id="new-item-kind-options" class="picker-menu" hidden></div>
-                  </div>
-
-                  <label class="field field--compact field--date">
-                    <input id="new-item-date" type="date" aria-label="Day" required />
-                  </label>
-                </div>
-
-                <div class="picker">
-                  <button
-                    id="new-item-project-trigger"
-                    class="picker-trigger picker-trigger--project"
-                    type="button"
-                    aria-haspopup="listbox"
-                    aria-expanded="false"
-                  ></button>
-                  <div id="new-item-project-options" class="picker-menu picker-menu--projects" hidden></div>
-                </div>
-
-                <div class="form-row">
-                  <label class="field">
-                    <span>Start time</span>
-                    <input id="new-item-start-time" type="time" />
-                  </label>
-
-                  <label class="field">
-                    <span>End time</span>
-                    <input id="new-item-end-time" type="time" />
-                  </label>
-                </div>
-
-                <label id="new-item-estimate-field" class="field" hidden>
-                  <span>Task length (minutes)</span>
-                  <input id="new-item-estimate" type="number" min="15" step="15" placeholder="45" />
-                </label>
-
-                <p id="new-item-feedback" class="form-feedback" aria-live="polite"></p>
-                <button id="new-item-submit" class="button button--ghost" type="submit">
-                  Add item
-                </button>
-              </form>
             </div>
           </section>
 
@@ -122,42 +59,13 @@
                 id="new-project-panel-toggle"
                 class="panel-toggle"
                 type="button"
+                aria-haspopup="dialog"
                 aria-expanded="false"
-                aria-controls="new-project-panel-body"
+                aria-controls="new-project-dialog"
               >
                 <span class="panel-toggle__title">New Project</span>
                 <span class="panel-toggle__icon" aria-hidden="true">+</span>
               </button>
-            </div>
-
-            <div id="new-project-panel-body" class="panel__content" hidden>
-              <form id="new-project-form" class="planner-form">
-                <label class="field field--compact">
-                  <input
-                    id="new-project-name"
-                    type="text"
-                    placeholder="New project..."
-                    aria-label="Project name"
-                    required
-                  />
-                </label>
-
-                <div class="picker">
-                  <button
-                    id="new-project-category-trigger"
-                    class="picker-trigger"
-                    type="button"
-                    aria-haspopup="listbox"
-                    aria-expanded="false"
-                  ></button>
-                  <div id="new-project-category-options" class="picker-menu" hidden></div>
-                </div>
-
-                <p id="new-project-feedback" class="form-feedback" aria-live="polite"></p>
-                <button id="new-project-submit" class="button button--ghost" type="submit">
-                  Create project
-                </button>
-              </form>
             </div>
           </section>
 
@@ -194,6 +102,136 @@
         </aside>
       </div>
     </div>
+
+    <dialog id="new-item-dialog" class="planner-dialog">
+      <form id="new-item-form" class="planner-dialog__panel planner-form">
+        <div class="planner-dialog__header">
+          <div>
+            <div id="new-item-dialog-eyebrow" class="planner-dialog__eyebrow">Add an item</div>
+            <h3 id="new-item-dialog-title" class="planner-dialog__title">Create a new planner item</h3>
+          </div>
+          <button
+            id="new-item-dialog-close"
+            class="button button--ghost planner-dialog__close"
+            type="button"
+          >
+            Close
+          </button>
+        </div>
+
+        <div class="planner-dialog__body">
+          <label class="field field--compact">
+            <input
+              id="new-item-text"
+              type="text"
+              placeholder="New item..."
+              aria-label="Item title"
+              required
+            />
+          </label>
+
+          <div class="form-row form-row--composer">
+            <div class="picker">
+              <button
+                id="new-item-kind-trigger"
+                class="picker-trigger"
+                type="button"
+                aria-haspopup="listbox"
+                aria-expanded="false"
+              ></button>
+              <div id="new-item-kind-options" class="picker-menu" hidden></div>
+            </div>
+
+            <label class="field field--compact field--date">
+              <input id="new-item-date" type="date" aria-label="Day" required />
+            </label>
+          </div>
+
+          <div class="picker">
+            <button
+              id="new-item-project-trigger"
+              class="picker-trigger picker-trigger--project"
+              type="button"
+              aria-haspopup="listbox"
+              aria-expanded="false"
+            ></button>
+            <div id="new-item-project-options" class="picker-menu picker-menu--projects" hidden></div>
+          </div>
+
+          <div class="form-row">
+            <label class="field">
+              <span>Start time</span>
+              <input id="new-item-start-time" type="time" />
+            </label>
+
+            <label class="field">
+              <span>End time</span>
+              <input id="new-item-end-time" type="time" />
+            </label>
+          </div>
+
+          <label id="new-item-estimate-field" class="field" hidden>
+            <span>Task length (minutes)</span>
+            <input id="new-item-estimate" type="number" min="15" step="15" placeholder="45" />
+          </label>
+        </div>
+
+        <p id="new-item-feedback" class="form-feedback" aria-live="polite"></p>
+        <div class="planner-dialog__actions">
+          <button id="new-item-submit" class="button button--ghost" type="submit">
+            Add item
+          </button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="new-project-dialog" class="planner-dialog">
+      <form id="new-project-form" class="planner-dialog__panel planner-form">
+        <div class="planner-dialog__header">
+          <div>
+            <div class="planner-dialog__eyebrow">New project</div>
+            <h3 class="planner-dialog__title">Create a project</h3>
+          </div>
+          <button
+            id="new-project-dialog-close"
+            class="button button--ghost planner-dialog__close"
+            type="button"
+          >
+            Close
+          </button>
+        </div>
+
+        <div class="planner-dialog__body">
+          <label class="field field--compact">
+            <input
+              id="new-project-name"
+              type="text"
+              placeholder="New project..."
+              aria-label="Project name"
+              required
+            />
+          </label>
+
+          <div class="picker">
+            <button
+              id="new-project-category-trigger"
+              class="picker-trigger"
+              type="button"
+              aria-haspopup="listbox"
+              aria-expanded="false"
+            ></button>
+            <div id="new-project-category-options" class="picker-menu" hidden></div>
+          </div>
+        </div>
+
+        <p id="new-project-feedback" class="form-feedback" aria-live="polite"></p>
+        <div class="planner-dialog__actions">
+          <button id="new-project-submit" class="button button--ghost" type="submit">
+            Create project
+          </button>
+        </div>
+      </form>
+    </dialog>
 
     <dialog id="agenda-dialog" class="agenda-dialog">
       <form method="dialog" class="agenda-dialog__panel">

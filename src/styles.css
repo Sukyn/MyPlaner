@@ -1005,6 +1005,7 @@ textarea {
   right: 6px;
 }
 
+.planner-dialog,
 .agenda-dialog {
   width: min(560px, calc(100vw - 28px));
   padding: 0;
@@ -1014,11 +1015,13 @@ textarea {
   box-shadow: 0 28px 70px rgba(31, 43, 41, 0.2);
 }
 
+.planner-dialog::backdrop,
 .agenda-dialog::backdrop {
   background: rgba(31, 43, 41, 0.26);
   backdrop-filter: blur(4px);
 }
 
+.planner-dialog__panel,
 .agenda-dialog__panel {
   margin: 0;
   padding: 22px;
@@ -1027,6 +1030,7 @@ textarea {
   gap: 18px;
 }
 
+.planner-dialog__header,
 .agenda-dialog__header {
   display: flex;
   align-items: start;
@@ -1034,6 +1038,7 @@ textarea {
   gap: 12px;
 }
 
+.planner-dialog__eyebrow,
 .agenda-dialog__eyebrow {
   font-size: 0.78rem;
   letter-spacing: 0.08em;
@@ -1041,8 +1046,29 @@ textarea {
   color: var(--muted);
 }
 
+.planner-dialog__close,
 .agenda-dialog__close {
   flex-shrink: 0;
+}
+
+.planner-dialog__title {
+  margin: 6px 0 0;
+  font-family: var(--display);
+  font-size: clamp(1.2rem, 1.1rem + 0.6vw, 1.6rem);
+  line-height: 1.24;
+}
+
+.planner-dialog__body {
+  display: grid;
+  gap: 12px;
+  max-height: min(68vh, 540px);
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.planner-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .agenda-dialog__body {
@@ -1161,4 +1187,3 @@ textarea {
   }
 
 }
-

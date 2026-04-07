@@ -36,6 +36,12 @@ const state = {
   deletingItemKeys: new Set(),
   editingItemKeys: new Set(),
   itemComposer: {
+    mode: "create",
+    itemKey: null,
+    sourceInfo: null,
+    sourceType: null,
+    originalPayload: null,
+    originalDate: "",
     text: "",
     date: "",
     kind: "event",
@@ -63,7 +69,10 @@ const elements = {
   quietToggle: document.querySelector("#quiet-toggle"),
   todayButton: document.querySelector("#today-button"),
   newItemPanelToggle: document.querySelector("#new-item-panel-toggle"),
-  newItemPanelBody: document.querySelector("#new-item-panel-body"),
+  newItemDialog: document.querySelector("#new-item-dialog"),
+  newItemDialogEyebrow: document.querySelector("#new-item-dialog-eyebrow"),
+  newItemDialogTitle: document.querySelector("#new-item-dialog-title"),
+  newItemDialogClose: document.querySelector("#new-item-dialog-close"),
   newItemForm: document.querySelector("#new-item-form"),
   newItemText: document.querySelector("#new-item-text"),
   newItemDate: document.querySelector("#new-item-date"),
@@ -78,7 +87,8 @@ const elements = {
   newItemFeedback: document.querySelector("#new-item-feedback"),
   newItemSubmit: document.querySelector("#new-item-submit"),
   newProjectPanelToggle: document.querySelector("#new-project-panel-toggle"),
-  newProjectPanelBody: document.querySelector("#new-project-panel-body"),
+  newProjectDialog: document.querySelector("#new-project-dialog"),
+  newProjectDialogClose: document.querySelector("#new-project-dialog-close"),
   newProjectForm: document.querySelector("#new-project-form"),
   newProjectName: document.querySelector("#new-project-name"),
   newProjectCategoryTrigger: document.querySelector("#new-project-category-trigger"),
@@ -165,6 +175,108 @@ function ensureComposerDefaults() {
   }
 }
 
+function prepareItemComposerForCreate() {
+  if (state.itemComposer.mode !== "edit") {
+    clearComposerStatus("item");
+    return;
+  }
+
+  resetItemComposerAfterEdit();
+  clearComposerStatus("item");
+}
+
+function resetItemComposerAfterEdit() {
+  state.itemComposer.mode = "create";
+  state.itemComposer.itemKey = null;
+  state.itemComposer.sourceInfo = null;
+  state.itemComposer.sourceType = null;
+  state.itemComposer.originalPayload = null;
+  state.itemComposer.originalDate = "";
+  state.itemComposer.text = "";
+  state.itemComposer.startTime = "";
+  state.itemComposer.endTime = "";
+  state.itemComposer.estimateMinutes = "";
+}
+
+function buildItemComposerPayloadFromItem(item, day) {
+  const timing = item.timing ?? {};
+  const fullProjectKey =
+    item.categoryKey && item.projectKey ? `${item.categoryKey}/${item.projectKey}` : item.projectKey ?? "";
+
+  return {
+    text: String(item.text ?? "").trim(),
+    date: day.date,
+    kind: item.kind ?? "event",
+    projectKey: fullProjectKey,
+    startTime:
+      timing.explicitStartMinute != null ? formatClock(timing.explicitStartMinute) : "",
+    endTime:
+      timing.explicitEndMinute != null ? formatClock(timing.explicitEndMinute) : "",
+    estimateMinutes:
+      item.kind !== "event" &&
+      timing.explicitEndMinute == null &&
+      timing.estimateSource !== "default" &&
+      Number.isFinite(timing.estimateMinutes)
+        ? String(timing.estimateMinutes)
+        : ""
+  };
+}
+
+function applyItemComposerPayload(
+  payload,
+  { mode = "create", itemKey = null, sourceInfo = null, sourceType = null, originalDate = "" } = {}
+) {
+  state.itemComposer.mode = mode;
+  state.itemComposer.itemKey = itemKey;
+  state.itemComposer.sourceInfo = sourceInfo;
+  state.itemComposer.sourceType = sourceType;
+  state.itemComposer.originalPayload =
+    mode === "edit" ? normalizeComparableItemPayload(payload) : null;
+  state.itemComposer.originalDate = originalDate;
+  state.itemComposer.text = payload.text;
+  state.itemComposer.date = payload.date;
+  state.itemComposer.kind = payload.kind;
+  state.itemComposer.projectKey = payload.projectKey;
+  state.itemComposer.startTime = payload.startTime;
+  state.itemComposer.endTime = payload.endTime;
+  state.itemComposer.estimateMinutes = payload.estimateMinutes;
+}
+
+function buildItemComposerSubmissionPayload() {
+  return {
+    text: state.itemComposer.text.trim(),
+    date: state.itemComposer.date,
+    kind: state.itemComposer.kind,
+    projectKey: state.itemComposer.projectKey,
+    startTime: state.itemComposer.startTime || null,
+    endTime: state.itemComposer.endTime || null,
+    estimateMinutes:
+      shouldShowItemEstimateField() && state.itemComposer.estimateMinutes
+        ? Number(state.itemComposer.estimateMinutes)
+        : null,
+    originalDate: state.itemComposer.originalDate || state.itemComposer.date
+  };
+}
+
+function normalizeComparableItemPayload(payload) {
+  return {
+    text: String(payload?.text ?? "").trim(),
+    date: String(payload?.date ?? "").trim(),
+    kind: String(payload?.kind ?? "").trim(),
+    projectKey: String(payload?.projectKey ?? "").trim(),
+    startTime: payload?.startTime ? String(payload.startTime) : null,
+    endTime: payload?.endTime ? String(payload.endTime) : null,
+    estimateMinutes:
+      payload?.estimateMinutes == null || payload?.estimateMinutes === ""
+        ? null
+        : Number(payload.estimateMinutes)
+  };
+}
+
+function areItemPayloadsEqual(left, right) {
+  return JSON.stringify(normalizeComparableItemPayload(left)) === JSON.stringify(normalizeComparableItemPayload(right));
+}
+
 function getOrderedProjects() {
   return [...(state.data?.projects ?? [])].sort(
     (left, right) =>
@@ -223,15 +335,50 @@ function wireEvents() {
   });
 
   elements.newItemPanelToggle.addEventListener("click", () => {
-    toggleComposerPanel("item");
+    prepareItemComposerForCreate();
+    openComposerDialog("item");
   });
 
   elements.newProjectPanelToggle.addEventListener("click", () => {
-    toggleComposerPanel("project");
+    openComposerDialog("project");
+  });
+
+  elements.newItemDialogClose.addEventListener("click", () => {
+    requestComposerDialogClose("item");
+  });
+
+  elements.newProjectDialogClose.addEventListener("click", () => {
+    requestComposerDialogClose("project");
   });
 
   elements.prevButton.addEventListener("click", () => stepSelectedDate(-1));
   elements.nextButton.addEventListener("click", () => stepSelectedDate(1));
+  elements.newItemDialog.addEventListener("click", (event) => {
+    if (event.target === elements.newItemDialog) {
+      requestComposerDialogClose("item");
+    }
+  });
+  elements.newProjectDialog.addEventListener("click", (event) => {
+    if (event.target === elements.newProjectDialog) {
+      requestComposerDialogClose("project");
+    }
+  });
+  elements.newItemDialog.addEventListener("cancel", (event) => {
+    if (state.isCreatingItem) {
+      event.preventDefault();
+    }
+  });
+  elements.newProjectDialog.addEventListener("cancel", (event) => {
+    if (state.isCreatingProject) {
+      event.preventDefault();
+    }
+  });
+  elements.newItemDialog.addEventListener("close", () => {
+    handleComposerDialogClosed("item");
+  });
+  elements.newProjectDialog.addEventListener("close", () => {
+    handleComposerDialogClosed("project");
+  });
   elements.agendaDialog.addEventListener("click", (event) => {
     if (event.target === elements.agendaDialog) {
       elements.agendaDialog.close();
@@ -305,6 +452,11 @@ function wireEvents() {
 
   elements.newItemForm.addEventListener("submit", async (event) => {
     event.preventDefault();
+    if (state.itemComposer.mode === "edit") {
+      await handleUpdateItem();
+      return;
+    }
+
     await handleCreateItem();
   });
 
@@ -354,6 +506,8 @@ function wireEvents() {
       return;
     }
 
+    event.preventDefault();
+    event.stopPropagation();
     state.openComposerPicker = null;
     renderComposerPanels();
   });
@@ -387,6 +541,7 @@ function renderControls() {
 
 function renderComposerPanels() {
   ensureComposerDefaults();
+  const isEditingItem = state.itemComposer.mode === "edit";
 
   if (
     !state.isItemComposerOpen &&
@@ -401,9 +556,32 @@ function renderComposerPanels() {
 
   elements.newItemPanelToggle.setAttribute("aria-expanded", String(state.isItemComposerOpen));
   elements.newProjectPanelToggle.setAttribute("aria-expanded", String(state.isProjectComposerOpen));
-  elements.newItemPanelBody.hidden = !state.isItemComposerOpen;
-  elements.newProjectPanelBody.hidden = !state.isProjectComposerOpen;
 
+  if (!state.isItemComposerOpen && elements.newItemDialog.open) {
+    elements.newItemDialog.close();
+  }
+
+  if (!state.isProjectComposerOpen && elements.newProjectDialog.open) {
+    elements.newProjectDialog.close();
+  }
+
+  if (state.isItemComposerOpen && !elements.newItemDialog.open) {
+    elements.newItemDialog.showModal();
+  }
+
+  if (state.isProjectComposerOpen && !elements.newProjectDialog.open) {
+    elements.newProjectDialog.showModal();
+  }
+
+  elements.newItemDialogEyebrow.textContent =
+    state.itemComposer.sourceType === "recurring-rule" && isEditingItem
+      ? "Edit recurring item"
+      : isEditingItem
+        ? "Edit item"
+        : "Add an item";
+  elements.newItemDialogTitle.textContent = isEditingItem
+    ? "Update this planner item"
+    : "Create a new planner item";
   elements.newItemText.value = state.itemComposer.text;
   elements.newItemDate.min = state.data.meta.startDate;
   elements.newItemDate.max = state.data.meta.endDate;
@@ -419,7 +597,14 @@ function renderComposerPanels() {
   elements.newItemEndTime.disabled = state.isCreatingItem;
   elements.newItemEstimate.disabled = state.isCreatingItem || !shouldShowItemEstimateField();
   elements.newItemSubmit.disabled = state.isCreatingItem || !state.data.projects.length;
-  elements.newItemSubmit.textContent = state.isCreatingItem ? "Adding..." : "Add item";
+  elements.newItemDialogClose.disabled = state.isCreatingItem;
+  elements.newItemSubmit.textContent = state.isCreatingItem
+    ? isEditingItem
+      ? "Saving..."
+      : "Adding..."
+    : isEditingItem
+      ? "Save changes"
+      : "Add item";
   elements.newItemKindTrigger.innerHTML = buildPickerTriggerMarkup("Kind", getSelectedItemKindLabel());
   elements.newItemProjectTrigger.innerHTML = buildPickerTriggerMarkup(
     "Project",
@@ -437,6 +622,7 @@ function renderComposerPanels() {
   elements.newProjectName.disabled = state.isCreatingProject;
   elements.newProjectCategoryTrigger.disabled = state.isCreatingProject;
   elements.newProjectSubmit.disabled = state.isCreatingProject;
+  elements.newProjectDialogClose.disabled = state.isCreatingProject;
   elements.newProjectSubmit.textContent = state.isCreatingProject ? "Creating..." : "Create project";
   elements.newProjectCategoryTrigger.innerHTML = buildPickerTriggerMarkup(
     "Category",
@@ -550,19 +736,90 @@ function getSelectedProjectCategoryLabel() {
   );
 }
 
-function toggleComposerPanel(name) {
+function openComposerDialog(name) {
   if (name === "item") {
-    state.isItemComposerOpen = !state.isItemComposerOpen;
-    if (!state.isItemComposerOpen && (state.openComposerPicker === "kind" || state.openComposerPicker === "project")) {
+    state.isItemComposerOpen = true;
+    state.isProjectComposerOpen = false;
+    if (state.openComposerPicker === "project-category") {
       state.openComposerPicker = null;
     }
+    clearComposerStatus("item");
   }
 
   if (name === "project") {
-    state.isProjectComposerOpen = !state.isProjectComposerOpen;
-    if (!state.isProjectComposerOpen && state.openComposerPicker === "project-category") {
+    state.isProjectComposerOpen = true;
+    state.isItemComposerOpen = false;
+    if (state.openComposerPicker === "kind" || state.openComposerPicker === "project") {
       state.openComposerPicker = null;
     }
+    clearComposerStatus("project");
+  }
+
+  renderComposerPanels();
+
+  window.requestAnimationFrame(() => {
+    if (name === "item" && state.isItemComposerOpen) {
+      elements.newItemText.focus();
+    }
+
+    if (name === "project" && state.isProjectComposerOpen) {
+      elements.newProjectName.focus();
+    }
+  });
+}
+
+function requestComposerDialogClose(name) {
+  if (
+    (name === "item" && state.isCreatingItem) ||
+    (name === "project" && state.isCreatingProject)
+  ) {
+    return;
+  }
+
+  closeComposerDialog(name);
+}
+
+function closeComposerDialog(name) {
+  if (name === "item") {
+    state.isItemComposerOpen = false;
+    if (state.openComposerPicker === "kind" || state.openComposerPicker === "project") {
+      state.openComposerPicker = null;
+    }
+    if (state.itemComposer.mode === "edit") {
+      resetItemComposerAfterEdit();
+    }
+    clearComposerStatus("item");
+  }
+
+  if (name === "project") {
+    state.isProjectComposerOpen = false;
+    if (state.openComposerPicker === "project-category") {
+      state.openComposerPicker = null;
+    }
+    clearComposerStatus("project");
+  }
+
+  renderComposerPanels();
+}
+
+function handleComposerDialogClosed(name) {
+  if (name === "item") {
+    state.isItemComposerOpen = false;
+    if (state.openComposerPicker === "kind" || state.openComposerPicker === "project") {
+      state.openComposerPicker = null;
+    }
+    if (state.itemComposer.mode === "edit") {
+      resetItemComposerAfterEdit();
+    }
+    clearComposerStatus("item");
+  }
+
+  if (name === "project") {
+    state.isProjectComposerOpen = false;
+    if (state.openComposerPicker === "project-category") {
+      state.openComposerPicker = null;
+    }
+    clearComposerStatus("project");
   }
 
   renderComposerPanels();
@@ -621,38 +878,96 @@ function setComposerStatus(type, tone, message) {
   }
 }
 
+function getItemComposerValidationMessage(payload) {
+  if (!payload.text) {
+    return "Add a title before saving the item.";
+  }
+
+  if (!payload.projectKey) {
+    return "Choose a project before saving the item.";
+  }
+
+  if (!payload.date) {
+    return "Choose the day for this item.";
+  }
+
+  return null;
+}
+
+async function handleUpdateItem() {
+  if (state.isCreatingItem) {
+    return;
+  }
+
+  if (!state.itemComposer.sourceInfo) {
+    setComposerStatus("item", "error", "This item cannot be edited because its source metadata is missing.");
+    renderComposerPanels();
+    return;
+  }
+
+  const payload = buildItemComposerSubmissionPayload();
+  const validationMessage = getItemComposerValidationMessage(payload);
+  if (validationMessage) {
+    setComposerStatus("item", "error", validationMessage);
+    renderComposerPanels();
+    return;
+  }
+
+  if (state.itemComposer.originalPayload && areItemPayloadsEqual(state.itemComposer.originalPayload, payload)) {
+    closeComposerDialog("item");
+    return;
+  }
+
+  const itemKey = state.itemComposer.itemKey ?? getItemDeletionKey({ sourceInfo: state.itemComposer.sourceInfo });
+  if (state.deletingItemKeys.has(itemKey) || state.editingItemKeys.has(itemKey)) {
+    return;
+  }
+
+  state.isCreatingItem = true;
+  state.editingItemKeys.add(itemKey);
+  clearComposerStatus("item");
+  renderComposerPanels();
+
+  try {
+    const response = await fetch("./api/items/update", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        sourceInfo: state.itemComposer.sourceInfo,
+        item: payload
+      })
+    });
+    const result = await readApiResult(response, "Update request");
+
+    state.selectedDate = payload.date;
+    state.isItemComposerOpen = false;
+    resetItemComposerAfterEdit();
+    await refreshPlannerData(payload.date, result?.plannerData);
+  } catch (error) {
+    console.error(error);
+    setComposerStatus(
+      "item",
+      "error",
+      error instanceof Error ? error.message : "The planner could not update that item."
+    );
+  } finally {
+    state.isCreatingItem = false;
+    state.editingItemKeys.delete(itemKey);
+    renderComposerPanels();
+  }
+}
+
 async function handleCreateItem() {
   if (state.isCreatingItem) {
     return;
   }
 
-  const payload = {
-    text: state.itemComposer.text.trim(),
-    date: state.itemComposer.date,
-    kind: state.itemComposer.kind,
-    projectKey: state.itemComposer.projectKey,
-    startTime: state.itemComposer.startTime || null,
-    endTime: state.itemComposer.endTime || null,
-    estimateMinutes:
-      shouldShowItemEstimateField() && state.itemComposer.estimateMinutes
-        ? Number(state.itemComposer.estimateMinutes)
-        : null
-  };
-
-  if (!payload.text) {
-    setComposerStatus("item", "error", "Add a title before creating the item.");
-    renderComposerPanels();
-    return;
-  }
-
-  if (!payload.projectKey) {
-    setComposerStatus("item", "error", "Choose a project before creating the item.");
-    renderComposerPanels();
-    return;
-  }
-
-  if (!payload.date) {
-    setComposerStatus("item", "error", "Choose the day for the new item.");
+  const payload = buildItemComposerSubmissionPayload();
+  const validationMessage = getItemComposerValidationMessage(payload);
+  if (validationMessage) {
+    setComposerStatus("item", "error", validationMessage.replace("saving", "creating").replace("this item", "the new item"));
     renderComposerPanels();
     return;
   }
@@ -674,12 +989,19 @@ async function handleCreateItem() {
     const result = await readApiResult(response, "Item creation");
 
     state.selectedDate = payload.date;
+    state.itemComposer.mode = "create";
+    state.itemComposer.itemKey = null;
+    state.itemComposer.sourceInfo = null;
+    state.itemComposer.sourceType = null;
+    state.itemComposer.originalPayload = null;
+    state.itemComposer.originalDate = "";
     state.itemComposer.text = "";
     state.itemComposer.startTime = "";
     state.itemComposer.endTime = "";
     state.itemComposer.estimateMinutes = "";
+    state.isItemComposerOpen = false;
+    clearComposerStatus("item");
     await refreshPlannerData(payload.date, result?.plannerData);
-    setComposerStatus("item", "success", "Item created.");
   } catch (error) {
     console.error(error);
     setComposerStatus(
@@ -727,8 +1049,9 @@ async function handleCreateProject() {
 
     state.projectComposer.name = "";
     state.itemComposer.projectKey = result?.project?.key ?? state.itemComposer.projectKey;
+    state.isProjectComposerOpen = false;
+    clearComposerStatus("project");
     await refreshPlannerData(state.selectedDate, result?.plannerData);
-    setComposerStatus("project", "success", "Project created.");
   } catch (error) {
     console.error(error);
     setComposerStatus(
@@ -1102,7 +1425,7 @@ function createEditButton(item, day) {
   button.addEventListener("click", async (event) => {
     event.preventDefault();
     event.stopPropagation();
-    await promptAndEditItem(item, day);
+    openItemComposerForEdit(item, day);
   });
 
   return button;
@@ -1141,36 +1464,7 @@ function getItemDeletionKey(item) {
   ].join("::");
 }
 
-function buildEditableItemText(item) {
-  const timing = item.timing ?? {};
-  let text = String(item.text ?? "").trim();
-
-  if (timing.explicitTimeSource === "leading-range") {
-    text = `${formatTodoClock(timing.explicitStartMinute)}-${formatTodoClock(timing.explicitEndMinute)} ${text}`;
-  } else if (timing.explicitTimeSource === "leading-start") {
-    text = `${formatTodoClock(timing.explicitStartMinute)} ${text}`;
-  }
-
-  if (
-    timing.explicitEndMinute == null &&
-    timing.estimateSource === "tag" &&
-    Number.isFinite(timing.estimateMinutes)
-  ) {
-    text = `${text} @${formatTodoDurationToken(timing.estimateMinutes)}`;
-  }
-
-  return text.trim();
-}
-
-function normalizeEditableItemText(value) {
-  return String(value ?? "")
-    .replace(/\r?\n+/g, " ")
-    .replace(/^\s*[-*]\s+(?:\[(?: |x|X)\]\s+)?/, "")
-    .replace(/\s{2,}/g, " ")
-    .trim();
-}
-
-async function promptAndEditItem(item, day) {
+function openItemComposerForEdit(item, day) {
   if (!item.sourceInfo) {
     window.alert("This item cannot be edited because its source metadata is missing.");
     return;
@@ -1181,55 +1475,20 @@ async function promptAndEditItem(item, day) {
     return;
   }
 
-  const currentText = buildEditableItemText(item);
-  const draftText = window.prompt(`Edit "${item.text}"`, currentText);
-  if (draftText == null) {
-    return;
+  applyItemComposerPayload(buildItemComposerPayloadFromItem(item, day), {
+    mode: "edit",
+    itemKey,
+    sourceInfo: item.sourceInfo,
+    sourceType: item.source ?? item.sourceInfo.type ?? "daily-file",
+    originalDate: day.date
+  });
+  clearComposerStatus("item");
+
+  if (elements.agendaDialog.open) {
+    elements.agendaDialog.close();
   }
 
-  const nextText = normalizeEditableItemText(draftText);
-  if (!nextText) {
-    window.alert("Items need a title.");
-    return;
-  }
-
-  if (nextText === normalizeEditableItemText(currentText)) {
-    return;
-  }
-
-  const previousSelectedDate = state.selectedDate;
-  state.editingItemKeys.add(itemKey);
-  render();
-
-  try {
-    const response = await fetch("./api/items/update", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        sourceInfo: item.sourceInfo,
-        text: nextText
-      })
-    });
-    const payload = await readApiResult(response, "Update request");
-
-    if (elements.agendaDialog.open) {
-      elements.agendaDialog.close();
-    }
-
-    await refreshPlannerData(previousSelectedDate, payload?.plannerData);
-  } catch (error) {
-    console.error(error);
-    window.alert(
-      error instanceof Error && error.message
-        ? error.message
-        : "The planner could not update that item."
-    );
-  } finally {
-    state.editingItemKeys.delete(itemKey);
-    render();
-  }
+  openComposerDialog("item");
 }
 
 async function confirmAndDeleteItem(item, day) {
